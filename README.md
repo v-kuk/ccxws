@@ -84,7 +84,7 @@ binance.subscribeLevel2Snapshots(market);
 | Kraken                 | 0   | KrakenClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
 | LedgerX                | 1   | LedgerXClient             | -        | &#10003; | -        | -              | -             | -              | &#10003;\*    |
 | Liquid                 | 2   | LiquidClient              | &#10003; | &#10003; | -        | -              | &#10003;      | -              | -             |
-| OKEx                   | 3   | OkexClient                | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*    | -              | -             |
+| OKEx                   | 5   | OkexClient                | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*    | -              | -             |
 | Poloniex               | 2   | PoloniexClient            | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
 | Upbit                  | 1   | UpbitClient               | &#10003; | &#10003; | -        | &#10003;       | -             | -              | -             |
 | ZB                     | 1   | ZbClient                  | &#10003; | &#10003; | -        | &#10003;       | -             | -              | -             |
