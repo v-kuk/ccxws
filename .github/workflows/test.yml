@@ -82,7 +82,6 @@ jobs:
           - Okex
           - Poloniex
           - Upbit
-          - Zb
 
     steps:
       - name: Checkout code
