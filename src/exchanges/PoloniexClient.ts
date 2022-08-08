@@ -83,9 +83,10 @@ export class PoloniexClient extends BasicClient {
 
     protected _ping(): void {
         PoloniexClient._pingTimeout = setTimeout(() => {
-            this._wss.send(
-                JSON.stringify({ event: "ping" })
-            );
+            if (this._wss)
+                this._wss.send(
+                    JSON.stringify({ event: "ping" })
+                );
         }, 29000);
     }
 
@@ -110,7 +111,11 @@ export class PoloniexClient extends BasicClient {
                 return;
 
             if (msg.event === "error")
+            {
+                console.log("error", msg);
+
                 throw new Error(msg.message);
+            }
 
             if (msg.data?.length === 0)
                 return;
@@ -139,8 +144,10 @@ export class PoloniexClient extends BasicClient {
 
             // l2updates
             if (msg.channel === "book") {
+
                 const market = this._level2UpdateSubs.get(data.symbol);
                 if (!market) return;
+                console.log("book check");
 
                 this._onLevel2Update(msg.data, market);
                 return;
