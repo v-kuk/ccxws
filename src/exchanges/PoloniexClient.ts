@@ -17,10 +17,7 @@ import { Trade } from "../Trade";
 export class PoloniexClient extends BasicClient {
     protected static _pingTimeout: any;
 
-    constructor({
-        wssPath = "wss://ws.poloniex.com/ws/public",
-        watcherMs,
-    }: ClientOptions = {}) {
+    constructor({ wssPath = "wss://ws.poloniex.com/ws/public", watcherMs }: ClientOptions = {}) {
         super(wssPath, "Poloniex", undefined, watcherMs);
 
         this.hasTickers = true;
@@ -66,8 +63,8 @@ export class PoloniexClient extends BasicClient {
             JSON.stringify({
                 event: "subscribe",
                 channel: [channel],
-                symbols: [symbol]
-            })
+                symbols: [symbol],
+            }),
         );
     }
 
@@ -76,49 +73,40 @@ export class PoloniexClient extends BasicClient {
             JSON.stringify({
                 event: "unsubscribe",
                 channel: [channel],
-                symbols: [symbol]
+                symbols: [symbol],
             }),
         );
     }
 
     protected _ping(): void {
         PoloniexClient._pingTimeout = setTimeout(() => {
-            if (this._wss)
-                this._wss.send(
-                    JSON.stringify({ event: "ping" })
-                );
+            if (this._wss) this._wss.send(JSON.stringify({ event: "ping" }));
         }, 29000);
     }
 
     protected _onMessage(raw): void {
         try {
-            if (PoloniexClient._pingTimeout)
-                clearTimeout(PoloniexClient._pingTimeout);
+            if (PoloniexClient._pingTimeout) clearTimeout(PoloniexClient._pingTimeout);
 
             this._ping();
 
             const msg = JSON.parse(raw);
 
             // capture channel metadata
-            if (msg.event === "subscribe")
-                return;
+            if (msg.event === "subscribe") return;
 
             // process unsubscribe event
-            if (msg.event === "unsubscribe")
-                return;
+            if (msg.event === "unsubscribe") return;
 
-            if (msg.event === "pong")
-                return;
+            if (msg.event === "pong") return;
 
-            if (msg.event === "error")
-            {
+            if (msg.event === "error") {
                 console.log("error", msg);
 
                 throw new Error(msg.message);
             }
 
-            if (msg.data?.length === 0)
-                return;
+            if (msg.data?.length === 0) return;
 
             const data = msg.data[0];
 
@@ -144,7 +132,6 @@ export class PoloniexClient extends BasicClient {
 
             // l2updates
             if (msg.channel === "book") {
-
                 const market = this._level2UpdateSubs.get(data.symbol);
                 if (!market) return;
                 console.log("book check");
@@ -158,15 +145,7 @@ export class PoloniexClient extends BasicClient {
     }
 
     protected _createTicker(update, market): Ticker {
-        const {
-            dailyChange,
-            high,
-            amount,
-            quantity,
-            low,
-            open,
-            ts
-        } = update;
+        const { dailyChange, high, amount, quantity, low, open, ts } = update;
         return new Ticker({
             exchange: this.name,
             base: market.base,
@@ -182,13 +161,7 @@ export class PoloniexClient extends BasicClient {
     }
 
     protected _createTrade(update, market): Trade {
-        let {
-            id,
-            quantity,
-            takerSide,
-            price,
-            createTime
-        } = update;
+        let { id, quantity, takerSide, price, createTime } = update;
         price = Number(price).toFixed(8);
         quantity = Number(quantity).toFixed(8);
 
@@ -200,20 +173,14 @@ export class PoloniexClient extends BasicClient {
             unix: createTime,
             side: takerSide,
             price,
-            amount: quantity
+            amount: quantity,
         });
     }
 
     protected _onLevel2Update(data, market): void {
         for (let i = 0; i < data.length; i++) {
-            const asks = data[i].asks.map((ask: Array<string>) => new Level2Point(
-                ask[0],
-                ask[1]
-            ));
-            const bids = data[i].bids.map((bid: Array<string>) => new Level2Point(
-                bid[0],
-                bid[1]
-            ));
+            const asks = data[i].asks.map((ask: Array<string>) => new Level2Point(ask[0], ask[1]));
+            const bids = data[i].bids.map((bid: Array<string>) => new Level2Point(bid[0], bid[1]));
 
             const update = new Level2Update({
                 exchange: this.name,
@@ -222,7 +189,7 @@ export class PoloniexClient extends BasicClient {
                 timestamp: data[i].createTime,
                 sequenceId: data[i].id,
                 asks,
-                bids
+                bids,
             });
             this.emit("l2update", update, market);
         }
