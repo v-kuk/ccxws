@@ -100,11 +100,8 @@ export class PoloniexClient extends BasicClient {
 
             if (msg.event === "pong") return;
 
-            if (msg.event === "error") {
-                console.log("error", msg);
-
+            if (msg.event === "error")
                 throw new Error(msg.message);
-            }
 
             if (msg.data?.length === 0) return;
 
@@ -134,7 +131,6 @@ export class PoloniexClient extends BasicClient {
             if (msg.channel === "book") {
                 const market = this._level2UpdateSubs.get(data.symbol);
                 if (!market) return;
-                console.log("book check");
 
                 this._onLevel2Update(msg.data, market);
                 return;
@@ -154,8 +150,8 @@ export class PoloniexClient extends BasicClient {
             open: Number(open).toFixed(8),
             high,
             low,
-            volume: amount,
-            quoteVolume: quantity,
+            volume: quantity,
+            quoteVolume: amount,
             changePercent: dailyChange,
         });
     }
@@ -170,7 +166,7 @@ export class PoloniexClient extends BasicClient {
             base: market.base,
             quote: market.quote,
             tradeId: id,
-            unix: createTime,
+            unix: moment(createTime).utc().valueOf(),
             side: takerSide,
             price,
             amount: quantity,
@@ -186,7 +182,7 @@ export class PoloniexClient extends BasicClient {
                 exchange: this.name,
                 base: market.base,
                 quote: market.quote,
-                timestamp: data[i].createTime,
+                timestamp: moment(data[i].createTime).utc().valueOf(),
                 sequenceId: data[i].id,
                 asks,
                 bids,
