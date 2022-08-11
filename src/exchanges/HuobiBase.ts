@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+import moment from "moment";
 import { BasicClient } from "../BasicClient";
 import { Candle } from "../Candle";
 import { CandlePeriod } from "../CandlePeriod";
@@ -23,7 +24,7 @@ export class HuobiBase extends BasicClient {
         this.hasTrades = true;
         this.hasCandles = true;
         this.hasLevel2Snapshots = true;
-        this.hasLevel2Updates = false;
+        this.hasLevel2Updates = true;
         this.candlePeriod = CandlePeriod._1m;
     }
 
@@ -90,9 +91,8 @@ export class HuobiBase extends BasicClient {
     protected _sendSubLevel2Updates(remote_id: string) {
         this._wss.send(
             JSON.stringify({
-                sub: `market.${remote_id}.depth.size_150.high_freq`,
-                data_type: "incremental",
-                id: "depth_update_" + remote_id,
+                sub: `market.${remote_id}.mbp.150`,
+                id: "mbp_" + remote_id,
             }),
         );
     }
@@ -100,9 +100,8 @@ export class HuobiBase extends BasicClient {
     protected _sendUnsubLevel2Updates(remote_id: string) {
         this._wss.send(
             JSON.stringify({
-                unsub: `market.${remote_id}.depth.size_150.high_freq`,
-                data_type: "incremental",
-                id: "depth_update_" + remote_id,
+                unsub: `market.${remote_id}.mbp.150`,
+                id: "mbp_" + remote_id,
             }),
         );
     }
@@ -185,7 +184,7 @@ export class HuobiBase extends BasicClient {
             }
 
             // l2update
-            if (msgs.ch.endsWith("depth.size_150.high_freq")) {
+            if (msgs.ch.endsWith(".mbp.150")) {
                 const remoteId = msgs.ch.split(".")[1];
                 const market = this._level2UpdateSubs.get(remoteId);
                 if (!market) return;
@@ -328,7 +327,7 @@ export class HuobiBase extends BasicClient {
     }
    */
     protected _constructL2Update(msg, market) {
-        const { tick } = msg;
+        const { ts, tick } = msg;
 
         const asks = tick.asks
             ? tick.asks.map(p => new Level2Point(p[0].toFixed(8), p[1].toFixed(2)))
@@ -342,7 +341,7 @@ export class HuobiBase extends BasicClient {
             base: market.base,
             quote: market.quote,
             sequenceId: tick.version,
-            timestampMs: tick.ts,
+            timestampMs: moment(Number(ts)).utc().valueOf(),
             asks,
             bids,
             id: tick.id,
