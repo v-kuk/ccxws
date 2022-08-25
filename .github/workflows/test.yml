@@ -53,6 +53,7 @@ jobs:
       matrix:
         node-version: [16.x]
         exchange:
+          # - Bibox
           - Binance
           - BinanceFuturesCoinm
           - BinanceFuturesUsdtm
@@ -64,14 +65,15 @@ jobs:
           - Bitstamp
           - Bittrex
           - Bybit
-          - Cex
+          # - Cex
           - CoinbasePro
           - Coinex
-          - Deribit
+          # - Deribit
           - Digifinex
           - Ftx
           - FtxUs
           - Gateio
+          # - Gemini
           - HitBtc
           - Huobi
           - HuobiFutures
@@ -83,6 +85,7 @@ jobs:
           - Okex
           - Poloniex
           - Upbit
+          # - Zb
 
     steps:
       - name: Checkout code

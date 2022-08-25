@@ -296,7 +296,7 @@ export class OkexClient extends BasicClient {
    * Process ticker messages in the format
     {
       arg: { channel: 'tickers', instId: 'BTC-USDT' },
-      data: [ 
+      data: [
         {
           instType: 'SPOT',
           instId: 'BTC-USDT',
@@ -314,7 +314,7 @@ export class OkexClient extends BasicClient {
           volCcy24h: '295680931.82106796',
           vol24h: '7236.9089522',
           ts: '1650636858898'
-        } 
+        }
       ]
     }
    */
@@ -333,18 +333,18 @@ export class OkexClient extends BasicClient {
 
     /**
    * Processes trade messages in the format
-    { 
+    {
       arg:{ channel: 'trades', instId: 'BTC-USDT' },
-      data: [ 
+      data: [
         {
           instId: 'ETH-BTC',
           px: '0.0218',
           side: 'sell',
           sz: '1.1',
           ts: '1630048897897',
-          tradeId: '776432498' 
+          tradeId: '776432498'
         }
-      ] 
+      ]
     }
    */
     protected _processTrades(msg) {
@@ -434,7 +434,7 @@ export class OkexClient extends BasicClient {
    * The first message received is the "snapshot" orderbook and contains
    * 200 records in it.
    *
-    { 
+    {
       "arg": { "channel": "books", "instId": "BTC-USDT" },
       "action": "snapshot",
       "data": [
@@ -468,7 +468,7 @@ export class OkexClient extends BasicClient {
    * Subsequent calls will include the updates stream for changes to
    * the order book:
    *
-     { 
+     {
       "arg": { "channel": "books", "instId": "BTC-USDT" },
       "action": "update",
       "data": [
@@ -544,8 +544,8 @@ export class OkexClient extends BasicClient {
     protected _constructTicker(data, market) {
         const { last, bidPx, bidSz, askPx, askSz, open24h, high24h, low24h, vol24h, ts } = data;
 
-        const change = parseFloat(last) - parseFloat(open24h);
-        const changePercent = change / parseFloat(open24h);
+        const change = last === "" || open24h === "" ? 0 : parseFloat(last) - parseFloat(open24h);
+        const changePercent = change === 0 ? 0 : change / parseFloat(open24h);
         const timestamp = moment
             .unix(Math.ceil(ts / 1000))
             .utc()
@@ -555,10 +555,10 @@ export class OkexClient extends BasicClient {
             base: market.base,
             quote: market.quote,
             timestamp,
-            last,
-            open: open24h,
-            high: high24h,
-            low: low24h,
+            last: last === "" ? "0" : last,
+            open: open24h === "" ? "0" : open24h,
+            high: high24h === "" ? "0" : high24h,
+            low: low24h === "" ? "0" : low24h,
             volume: vol24h,
             change: change.toFixed(8),
             changePercent: changePercent.toFixed(2),
@@ -571,7 +571,7 @@ export class OkexClient extends BasicClient {
 
     /**
    * Constructs a trade from the message datum in format:
-    { 
+    {
       instId: 'ETH-BTC',
       px: '0.02182',
       side: 'sell',

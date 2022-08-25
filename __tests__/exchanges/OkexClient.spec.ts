@@ -40,13 +40,14 @@ const assertions = {
         hasChecksum: true,
     },
 
-    l2update: {
-        hasSnapshot: true,
-        hasTimestampMs: true,
-        hasSequenceId: false,
-        hasCount: true,
-        hasChecksum: true,
-    },
+    /* work only with logged user with VIP5 */
+    // l2update: {
+    //     hasSnapshot: true,
+    //     hasTimestampMs: true,
+    //     hasSequenceId: false,
+    //     hasCount: true,
+    //     hasChecksum: true,
+    // },
 };
 
 testClient({
