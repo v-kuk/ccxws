@@ -20,7 +20,7 @@ Check out the [CONTRIBUTING guide](/CONTRIBUTING.md) for how to get involved.
 Install ccxws
 
 ```bash
-npm install ccxws
+npm install git@github.com:MarhiievHE/ccxws.git
 ```
 
 Create a new client for an exchange. Subscribe to the events that you want to listen to by supplying a market.
@@ -53,7 +53,7 @@ binance.subscribeLevel2Snapshots(market);
 
 | Exchange               | API | Class                     | Ticker   | Trades   | Candles  | OB-L2 Snapshot | OB-L2 Updates | OB-L3 Snapshot | OB-L3 Updates |
 | ---------------------- | --- | ------------------------- | -------- | -------- | -------- | -------------- | ------------- | -------------- | ------------- |
-| Bibox                  | 1   | BiboxClient               | &#10003; | &#10003; | &#10003; | &#10003;       |               | -              | -             |
+| ~~Bibox~~              | ~~1~~ | ~~BiboxClient~~         | ~~&#10003;~~ | ~~&#10003;~~ | ~~&#10003;~~ |~~&#10003;~~       |               | -              | -             |
 | Binance                | 1   | BinanceClient             | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*\*  | -              | -             |
 | Binance Futures Coin-M | 1   | BinanceFuturesCoinmClient | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*\*  | -              | -             |
 | Binance Futures USDT-M | 1   | BinanceFuturesUsdtmClient | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*\*  | -              | -             |
@@ -64,16 +64,16 @@ binance.subscribeLevel2Snapshots(market);
 | BitMEX                 | 1   | BitmexClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
 | Bitstamp               | 2   | BitstampClient            | -        | &#10003; | -        | &#10003;       | &#10003;\*\*  | -              | -             |
 | Bittrex                | 3   | BittrexClient             | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
-| Cex.io                 | 1   | CexClient                 | &#10003; | &#10003; | &#10003; | &#10003;       |               | -              | -             |
+| ~~Cex.io~~             | 1   | ~~CexClient~~             |  ~~&#10003;~~ |  ~~&#10003;~~ |  ~~&#10003;~~ |  ~~&#10003;~~       |               | -              | -             |
 | Coinbase Pro           | 1   | CoinbaseProClient         | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | &#10003;      |
 | Coinex                 | 1   | CoinexClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
-| Deribit                | 2   | DeribitClient             | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
+| ~~Deribit~~            | ~~2~~   | ~~DeribitClient~~         | ~~&#10003;~~ | ~~&#10003;~~ | ~~&#10003;~~ | -              | ~~&#10003;~~    | -              | -             |
 | Digifinex              | 1   | DigifinexClient           | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
-| ErisX                  | 3.4 | ErisXClient               | -        | &#10003; | -        | -              | -             | -              | &#10003;\*    |
+| ?ErisX                 | 3.4 | ErisXClient               | -        | &#10003; | -        | -              | -             | -              | &#10003;\*    |
 | FTX                    | 1   | FtxClient                 | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
 | FTX US                 | 1   | FtxUsClient               | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
 | Gate.io                | 3   | GateioClient              | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
-| Gemini                 | 1   | GeminiClient              | -        | &#10003; | -        | -              | &#10003;\*    | -              | -             |
+| ~~Gemini~~                 | ~~1~~   | ~~GeminiClient~~              | -        | ~~&#10003;~~ | -        | -              | ~~&#10003;\*~~    | -              | -             |
 | HitBTC                 | 2   | HitBtcClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
 | Huobi Global           | 1   | HuobiClient               | &#10003; | &#10003; | &#10003; | &#10003;       | -             | -              | -             |
 | Huobi Global Futures   | 1   | HuobiFuturesClient        | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*    | -              | -             |
@@ -82,7 +82,7 @@ binance.subscribeLevel2Snapshots(market);
 | Huobi Korea            | 1   | HuobiKoreaClient          | &#10003; | &#10003; | &#10003; | &#10003;       | -             | -              | -             |
 | KuCoin                 | 2   | KucoinClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*\*  | -              | &#10003;\*    |
 | Kraken                 | 0   | KrakenClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
-| LedgerX                | 1   | LedgerXClient             | -        | &#10003; | -        | -              | -             | -              | &#10003;\*    |
+| ?LedgerX               | 1   | LedgerXClient             | -        | &#10003; | -        | -              | -             | -              | &#10003;\*    |
 | Liquid                 | 2   | LiquidClient              | &#10003; | &#10003; | -        | -              | &#10003;      | -              | -             |
 | OKEx                   | 5   | OkexClient                | &#10003; | &#10003; | &#10003; | &#10003;       | &#10003;\*    | -              | -             |
 | Poloniex               | 2   | PoloniexClient            | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | -             |
