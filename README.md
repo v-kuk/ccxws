@@ -64,6 +64,7 @@ binance.subscribeLevel2Snapshots(market);
 | BitMEX                 | 1   | BitmexClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
 | Bitstamp               | 2   | BitstampClient            | -        | &#10003; | -        | &#10003;       | &#10003;\*\*  | -              | -             |
 | Bittrex                | 3   | BittrexClient             | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
+| Bybit                  | 2   | BybitClient               | &#10003; | &#10003; | -        | -              | &#10003;      | -              | -             |
 | ~~Cex.io~~             | 1   | ~~CexClient~~             |  ~~&#10003;~~ |  ~~&#10003;~~ |  ~~&#10003;~~ |  ~~&#10003;~~       |               | -              | -             |
 | Coinbase Pro           | 1   | CoinbaseProClient         | &#10003; | &#10003; | -        | -              | &#10003;\*    | -              | &#10003;      |
 | Coinex                 | 1   | CoinexClient              | &#10003; | &#10003; | &#10003; | -              | &#10003;\*    | -              | -             |
