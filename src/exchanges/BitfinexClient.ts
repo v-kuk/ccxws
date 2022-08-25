@@ -79,7 +79,7 @@ export class BitfinexClient extends BasicClient {
     protected _sendUnsubLevel3Snapshots = NotImplementedAsyncFn;
 
     constructor({
-        wssPath = "wss://api.bitfinex.com/ws/2",
+        wssPath = "wss://api-pub.bitfinex.com/ws/2",
         watcherMs,
         l2UpdateDepth = 250,
         enableEmptyHeartbeatEvents = false,
@@ -140,7 +140,7 @@ export class BitfinexClient extends BasicClient {
             JSON.stringify({
                 event: "subscribe",
                 channel: "ticker",
-                pair: remote_id,
+                symbol: "t" + remote_id,
             }),
         );
     }
@@ -154,7 +154,7 @@ export class BitfinexClient extends BasicClient {
             JSON.stringify({
                 event: "subscribe",
                 channel: "trades",
-                pair: remote_id,
+                symbol: "t" + remote_id,
             }),
         );
     }
@@ -169,7 +169,7 @@ export class BitfinexClient extends BasicClient {
             JSON.stringify({
                 event: "subscribe",
                 channel: "book",
-                pair: remote_id,
+                symbol: "t" + remote_id,
                 len: String(this.l2UpdateDepth), // len must be of type string, even though it's a number
             }),
         );
