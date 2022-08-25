@@ -10,7 +10,7 @@ on:
     branches: [ "master" ]
 
 jobs:
-  validate:  
+  validate:
     runs-on: ubuntu-18.04
     strategy:
       matrix:
@@ -45,7 +45,7 @@ jobs:
           github-token: ${{ secrets.github_token }}
           flag-name: run-general
           parallel: true
-  
+
   exchange:
     needs: [validate]
     runs-on: ubuntu-18.04
@@ -53,6 +53,7 @@ jobs:
       matrix:
         node-version: [16.x]
         exchange:
+          # - Bibox
           - Binance
           - BinanceFuturesCoinm
           - BinanceFuturesUsdtm
@@ -63,14 +64,15 @@ jobs:
           - Bitmex
           - Bitstamp
           - Bittrex
-          - Cex
+          # - Cex
           - CoinbasePro
           - Coinex
-          - Deribit
+          # - Deribit
           - Digifinex
           - Ftx
           - FtxUs
           - Gateio
+          # - Gemini
           - HitBtc
           - Huobi
           - HuobiFutures
@@ -82,6 +84,7 @@ jobs:
           - Okex
           - Poloniex
           - Upbit
+          # - Zb
 
     steps:
       - name: Checkout code
