@@ -28,6 +28,7 @@ import { BithumbClient } from "./exchanges/BithumbClient";
 import { BitmexClient } from "./exchanges/BitmexClient";
 import { BitstampClient } from "./exchanges/BitstampClient";
 import { BittrexClient } from "./exchanges/BittrexClient";
+import { BybitClient } from "./exchanges/BybitClient";
 import { CexClient } from "./exchanges/CexClient";
 import { CoinbaseProClient } from "./exchanges/CoinbaseProClient";
 import { CoinexClient } from "./exchanges/CoinexClient";
@@ -88,6 +89,7 @@ export {
     BitmexClient,
     BitstampClient,
     BittrexClient,
+    BybitClient,
     CexClient,
     CoinbaseProClient,
     CoinexClient,
@@ -132,6 +134,7 @@ export default {
     BitMEX: BitmexClient,
     Bitstamp: BitstampClient,
     Bittrex: BittrexClient,
+    Bybit: BybitClient,
     Cex: CexClient,
     CoinbasePro: CoinbaseProClient,
     Coinex: CoinexClient,

@@ -64,6 +64,7 @@ jobs:
           - Bitmex
           - Bitstamp
           - Bittrex
+          - Bybit
           # - Cex
           - CoinbasePro
           - Coinex
