@@ -7,17 +7,17 @@ testClient({
     exchangeName: "Poloniex",
     markets: [
         {
-            id: "USDT_BTC",
+            id: "BTC_USDT",
             base: "BTC",
             quote: "USDT",
         },
         {
-            id: "BTC_ETH",
+            id: "ETH_BTC",
             base: "ETH",
             quote: "BTC",
         },
         {
-            id: "USDT_ETH",
+            id: "ETH_USDT",
             base: "ETH",
             quote: "USDT",
         },
@@ -38,16 +38,16 @@ testClient({
 
     ticker: {
         hasTimestamp: true,
-        hasLast: true,
+        hasLast: false,
         hasOpen: true,
         hasHigh: true,
         hasLow: true,
         hasVolume: true,
         hasQuoteVolume: true,
-        hasChange: true,
+        hasChange: false,
         hasChangePercent: true,
-        hasAsk: true,
-        hasBid: true,
+        hasAsk: false,
+        hasBid: false,
         hasAskVolume: false,
         hasBidVolume: false,
     },
@@ -63,7 +63,7 @@ testClient({
     },
 
     l2update: {
-        hasSnapshot: true,
+        hasSnapshot: false,
         hasTimestampMs: false,
         hasSequenceId: true,
         hasCount: false,
