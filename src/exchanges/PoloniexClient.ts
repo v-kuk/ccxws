@@ -59,21 +59,25 @@ export class PoloniexClient extends BasicClient {
     protected _sendUnsubLevel3Updates = NotImplementedFn;
 
     protected _sendSubscribe(channel: string, symbol: string): void {
+        const [quote, base] = symbol.split("_");
+
         this._wss.send(
             JSON.stringify({
                 event: "subscribe",
                 channel: [channel],
-                symbols: [symbol],
+                symbols: [`${base}_${quote}`],
             }),
         );
     }
 
     protected _sendUnsubscribe(channel: string, symbol: string): void {
+        const [quote, base] = symbol.split("_");
+
         this._wss.send(
             JSON.stringify({
                 event: "unsubscribe",
                 channel: [channel],
-                symbols: [symbol],
+                symbols: [`${base}_${quote}`],
             }),
         );
     }
