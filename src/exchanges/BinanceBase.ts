@@ -27,7 +27,7 @@
  *
  */
 
-import { BasicClient } from "../BasicClient";
+import { AssignedMarket, BasicClient, Socket } from "../BasicClient";
 import { Candle } from "../Candle";
 import { CandlePeriod } from "../CandlePeriod";
 import { batch } from "../flowcontrol/Batch";
@@ -46,6 +46,8 @@ export type BinanceClientOptions = {
     wssPath?: string;
     restL2SnapshotPath?: string;
     watcherMs?: number;
+    maxSocketSubs?: number;
+    maxRequestsPerSecond?: number;
     useAggTrades?: boolean;
     requestSnapshot?: boolean;
     socketBatchSize?: number;
@@ -78,6 +80,8 @@ export class BinanceBase extends BasicClient {
         wssPath,
         restL2SnapshotPath,
         watcherMs = 30000,
+        maxSocketSubs = null,
+        maxRequestsPerSecond = null,
         useAggTrades = true,
         requestSnapshot = true,
         socketBatchSize = 200,
@@ -87,7 +91,7 @@ export class BinanceBase extends BasicClient {
         l2snapshotSpeed = "",
         batchTickers = true,
     }: BinanceClientOptions = {}) {
-        super(wssPath, name, undefined, watcherMs);
+        super(wssPath, name, undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
 
         this._restL2SnapshotPath = restL2SnapshotPath;
 
@@ -127,11 +131,14 @@ export class BinanceBase extends BasicClient {
         super._onClosing();
     }
 
-    protected _sendSubTicker(remote_id: string) {
+    protected _sendSubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
         if (this.batchTickers) {
             if (this._tickersActive) return;
             this._tickersActive = true;
-            this._wss.send(
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     method: "SUBSCRIBE",
                     params: ["!ticker@arr"],
@@ -139,7 +146,7 @@ export class BinanceBase extends BasicClient {
                 }),
             );
         } else {
-            this._wss.send(
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     method: "SUBSCRIBE",
                     params: [`${remote_id.toLowerCase()}@ticker`],
@@ -149,11 +156,14 @@ export class BinanceBase extends BasicClient {
         }
     }
 
-    protected _sendUnsubTicker(remote_id: string) {
+    protected _sendUnsubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
         if (this.batchTickers) {
             if (this._tickerSubs.size > 1) return;
             this._tickersActive = false;
-            this._wss.send(
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     method: "UNSUBSCRIBE",
                     params: ["!ticker@arr"],
@@ -161,7 +171,7 @@ export class BinanceBase extends BasicClient {
                 }),
             );
         } else {
-            this._wss.send(
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     method: "UNSUBSCRIBE",
                     params: [`${remote_id.toLowerCase()}@ticker`],
@@ -172,17 +182,23 @@ export class BinanceBase extends BasicClient {
     }
 
     protected __batchSub(args: any[]) {
-        const params = args.map(p => p[0]);
-        const id = ++this._messageId;
-        const msg = JSON.stringify({
-            method: "SUBSCRIBE",
-            params,
-            id,
-        });
-        this._sendMessage(msg);
+        const subs = new Map();
+        args.map(p =>
+            subs.has(p[0]) ? subs.set(p[0], [...subs.get(p[0]), p[1]]) : subs.set(p[0], [p[1]]),
+        );
+
+        for (const [socket, params] of subs) {
+            const id = ++this._messageId;
+            const msg = JSON.stringify({
+                method: "SUBSCRIBE",
+                params,
+                id,
+            });
+            this._sendMessage(msg, socket);
+        }
     }
 
-    protected __batchUnsub(args) {
+    protected __batchUnsub(args, socket: Socket) {
         const params = args.map(p => p[0]);
         const id = ++this._messageId;
         const msg = JSON.stringify({
@@ -190,65 +206,81 @@ export class BinanceBase extends BasicClient {
             params,
             id,
         });
-        this._sendMessage(msg);
+        this._sendMessage(msg, socket);
     }
 
-    protected __sendMessage(msg) {
-        this._wss.send(msg);
+    protected __sendMessage(msg, socket: Socket) {
+        socket.connection.send(msg);
     }
 
-    protected _sendSubTrades(remote_id: string) {
+    protected _sendSubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream = remote_id.toLowerCase() + (this.useAggTrades ? "@aggTrade" : "@trade");
-        this._batchSub(stream);
+        this._batchSub(this._wss[socketId], stream);
     }
 
-    protected _sendUnsubTrades(remote_id: string) {
+    protected _sendUnsubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream = remote_id.toLowerCase() + (this.useAggTrades ? "@aggTrade" : "@trade");
-        this._batchUnsub(stream);
+        this._batchUnsub(this._wss[socketId], stream);
     }
 
-    protected _sendSubCandles(remote_id: string) {
+    protected _sendSubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream = remote_id.toLowerCase() + "@kline_" + candlePeriod(this.candlePeriod);
-        this._batchSub(stream);
+        this._batchSub(this._wss[socketId], stream);
     }
 
-    protected _sendUnsubCandles(remote_id: string) {
+    protected _sendUnsubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream = remote_id.toLowerCase() + "@kline_" + candlePeriod(this.candlePeriod);
-        this._batchUnsub(stream);
+        this._batchUnsub(this._wss[socketId], stream);
     }
 
-    protected _sendSubLevel2Snapshots(remote_id: string) {
+    protected _sendSubLevel2Snapshots(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream =
             remote_id.toLowerCase() +
             "@depth20" +
             (this.l2snapshotSpeed ? `@${this.l2snapshotSpeed}` : "");
-        this._batchSub(stream);
+        this._batchSub(this._wss[socketId], stream);
     }
 
-    protected _sendUnsubLevel2Snapshots(remote_id: string) {
+    protected _sendUnsubLevel2Snapshots(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream =
             remote_id.toLowerCase() +
             "@depth20" +
             (this.l2snapshotSpeed ? `@${this.l2snapshotSpeed}` : "");
-        this._batchUnsub(stream);
+        this._batchUnsub(this._wss[socketId], stream);
     }
 
-    protected _sendSubLevel2Updates(remote_id: string) {
+    protected _sendSubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         if (this.requestSnapshot)
             this._requestLevel2Snapshot(this._level2UpdateSubs.get(remote_id));
         const stream =
             remote_id.toLowerCase() +
             "@depth" +
             (this.l2updateSpeed ? `@${this.l2updateSpeed}` : "");
-        this._batchSub(stream);
+        this._batchSub(this._wss[socketId], stream);
     }
 
-    protected _sendUnsubLevel2Updates(remote_id: string) {
+    protected _sendUnsubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const stream =
             remote_id.toLowerCase() +
             "@depth" +
             (this.l2updateSpeed ? `@${this.l2updateSpeed}` : "");
-        this._batchUnsub(stream);
+        this._batchUnsub(this._wss[socketId], stream);
     }
 
     protected _sendSubLevel3Snapshots() {
@@ -299,7 +331,7 @@ export class BinanceBase extends BasicClient {
                 const market = this._tickerSubs.get(remote_id);
                 if (!market) continue;
 
-                const ticker = this._constructTicker(raw, market);
+                const ticker = this._constructTicker(raw, market.market);
                 this.emit("ticker", ticker, market);
             }
             return;
@@ -312,8 +344,8 @@ export class BinanceBase extends BasicClient {
             if (!market) return;
 
             const trade = this.useAggTrades
-                ? this._constructAggTrade(msg, market)
-                : this._constructRawTrade(msg, market);
+                ? this._constructAggTrade(msg, market.market)
+                : this._constructRawTrade(msg, market.market);
             this.emit("trade", trade, market);
             return;
         }
@@ -335,7 +367,7 @@ export class BinanceBase extends BasicClient {
             const market = this._level2SnapshotSubs.get(remote_id);
             if (!market) return;
 
-            const snapshot = this._constructLevel2Snapshot(msg, market);
+            const snapshot = this._constructLevel2Snapshot(msg, market.market);
             this.emit("l2snapshot", snapshot, market);
             return;
         }

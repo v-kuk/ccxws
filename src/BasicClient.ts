@@ -5,18 +5,25 @@ import { SmartWss } from "./SmartWss";
 import { Watcher } from "./Watcher";
 import { Market } from "./Market";
 
-export type MarketMap = Map<string, Market>;
+export type AssignedMarket = {
+    market: Market;
+    socketId: number;
+};
+export type MarketMap = Map<string, AssignedMarket>;
 export type WssFactoryFn = (path: string) => SmartWss;
-export type SendFn = (remoteId: string, market: Market) => void;
+export type SendFn = (remoteId: string, market: AssignedMarket) => void;
 
-/**
- * Single websocket connection client with
- * subscribe and unsubscribe methods. It is also an EventEmitter
- * and broadcasts 'trade' events.
- *
- * Anytime the WSS client connects (such as a reconnect)
- * it run the _onConnected method and will resubscribe.
- */
+export type Subscription = {
+    type: string;
+    name: string;
+};
+
+export type Socket = {
+    connection: SmartWss;
+    subscriptions: Set<Subscription>;
+    requestsCount: number;
+};
+
 export abstract class BasicClient extends EventEmitter implements IClient {
     public hasTickers: boolean;
     public hasTrades: boolean;
@@ -34,14 +41,20 @@ export abstract class BasicClient extends EventEmitter implements IClient {
     protected _level2UpdateSubs: MarketMap;
     protected _level3SnapshotSubs: MarketMap;
     protected _level3UpdateSubs: MarketMap;
-    protected _wss: SmartWss;
+    protected _wss: Array<Socket>;
     protected _watcher: Watcher;
+
+    protected _actionQueue: Array<() => void>;
+    protected _flushInterval: NodeJS.Timeout;
+    protected _creatingSocket: boolean;
 
     constructor(
         readonly wssPath: string,
         readonly name: string,
         wssFactory?: WssFactoryFn,
         watcherMs?: number,
+        readonly maxSocketSubs?: number,
+        readonly maxRequestsPerSecond?: number,
     ) {
         super();
         this._tickerSubs = new Map();
@@ -51,7 +64,7 @@ export abstract class BasicClient extends EventEmitter implements IClient {
         this._level2UpdateSubs = new Map();
         this._level3SnapshotSubs = new Map();
         this._level3UpdateSubs = new Map();
-        this._wss = undefined;
+        this._wss = [];
         this._watcher = new Watcher(this, watcherMs);
 
         this.hasTickers = false;
@@ -62,6 +75,13 @@ export abstract class BasicClient extends EventEmitter implements IClient {
         this.hasLevel3Snapshots = false;
         this.hasLevel3Updates = false;
         this._wssFactory = wssFactory || (path => new SmartWss(path));
+
+        this._creatingSocket = false;
+
+        if (this.maxRequestsPerSecond) {
+            // eslint-disable-next-line @typescript-eslint/no-implied-eval
+            this._flushInterval = setInterval(this._flushRequestsCount.bind(this), 1000);
+        }
     }
 
     //////////////////////////////////////////////
@@ -71,19 +91,25 @@ export abstract class BasicClient extends EventEmitter implements IClient {
             this._beforeClose();
         }
         this._watcher.stop();
-        if (this._wss) {
-            this._wss.close();
-            this._wss = undefined;
+        if (this._wss.length > 0) {
+            for (let i = 0; i < this._wss.length; i++) {
+                this._wss[i].connection.close();
+                this._wss.splice(i, 1);
+            }
         }
     }
 
-    public reconnect() {
+    public async reconnect() {
         this.emit("reconnecting");
-        if (this._wss) {
-            this._wss.once("closed", () => this._connect());
+        if (this._wss.length > 0) {
+            for (const wss of this._wss) {
+                // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                wss.connection.once("closed", () => this._connect());
+            }
+
             this.close();
         } else {
-            this._connect();
+            await this._connect();
         }
     }
 
@@ -157,6 +183,7 @@ export abstract class BasicClient extends EventEmitter implements IClient {
             this._sendSubLevel3Snapshots.bind(this),
         );
     }
+
     public unsubscribeLevel3Snapshots(market: Market): Promise<void> {
         throw new Error("Method not implemented.");
     }
@@ -183,23 +210,51 @@ export abstract class BasicClient extends EventEmitter implements IClient {
      * where a subscription map is maintained and the message
      * send operation is performed
      * @param {Market} market
-     * @param {Map}} map
-     * @param {String} msg
+     * @param {Map} map
      * @param {Function} sendFn
      * @returns {Boolean} returns true when a new subscription event occurs
      */
-    protected _subscribe(market: Market, map: MarketMap, sendFn: SendFn) {
-        this._connect();
+    protected async _subscribe(market: Market, map: MarketMap, sendFn: SendFn) {
+        await this._connect();
         const remote_id = market.id;
         if (!map.has(remote_id)) {
-            map.set(remote_id, market);
-
-            // perform the subscription if we're connected
+            const assignedMarket: AssignedMarket = {
+                market,
+                socketId: null,
+            };
+            // perform the subscription if socket array has any sockets and
+            // socket is connected and available for new pairs
+            // if there is no available sockets - we create them
             // and if not, then we'll reply on the _onConnected event
             // to send the signal to our server!
-            if (this._wss && this._wss.isConnected) {
-                sendFn(remote_id, market);
+            let socketToSubscribe: Promise<Socket> = null;
+            if (this._wss.length > 0) {
+                for (let i = 0; i < this._wss.length; i++) {
+                    const wss = this._wss[i];
+                    const isAvailable =
+                        (!this.maxSocketSubs || wss.subscriptions.size < this.maxSocketSubs) &&
+                        wss.connection.isConnected;
+                    if (isAvailable) {
+                        socketToSubscribe = Promise.resolve(wss); // we need to use same interface as _createConnection returns
+                        assignedMarket.socketId = i;
+                    }
+                }
             }
+
+            if (socketToSubscribe == null) {
+                socketToSubscribe = this._createConnection();
+                assignedMarket.socketId = this._wss.length - 1;
+            }
+
+            map.set(remote_id, assignedMarket);
+            socketToSubscribe
+                .then(socket =>
+                    this._processMessage(socket, () => sendFn(remote_id, assignedMarket)),
+                )
+                .catch(err => {
+                    throw new Error(err);
+                });
+
             return true;
         }
         return false;
@@ -213,11 +268,73 @@ export abstract class BasicClient extends EventEmitter implements IClient {
     protected _unsubscribe(market: Market, map: MarketMap, sendFn: SendFn) {
         const remote_id = market.id;
         if (map.has(remote_id)) {
+            const { market, socketId } = map.get(remote_id);
             map.delete(remote_id);
 
-            if (this._wss.isConnected) {
-                sendFn(remote_id, market);
+            if (this._wss[socketId].connection.isConnected) sendFn(remote_id, { market, socketId });
+        }
+    }
+
+    protected async _createConnection(): Promise<Socket> {
+        // if there is already creating connection - wait for it to stop creating
+        if (this._creatingSocket) {
+            const wait = () =>
+                new Promise<Socket>(resolve => {
+                    const interval = setInterval(() => {
+                        if (!this._creatingSocket) {
+                            clearInterval(interval);
+                            resolve(this._wss[this._wss.length - 1]);
+                        }
+                    }, 100);
+                });
+            return await wait();
+        }
+
+        this._creatingSocket = true;
+
+        const connection = this._wssFactory(this.wssPath);
+        connection.on("error", this._onError.bind(this));
+        connection.on("connecting", this._onConnecting.bind(this));
+        connection.on("connected", this._onConnected.bind(this));
+        connection.on("disconnected", this._onDisconnected.bind(this));
+        connection.on("closing", this._onClosing.bind(this));
+        connection.on("closed", this._onClosed.bind(this));
+        connection.on("message", (msg: string) => {
+            try {
+                this._onMessage(msg);
+            } catch (ex) {
+                this._onError(ex);
             }
+        });
+
+        await connection.connect();
+
+        this._wss.push({
+            connection,
+            subscriptions: new Set<Subscription>(),
+            requestsCount: 0,
+        });
+
+        this._creatingSocket = false;
+
+        return this._wss[this._wss.length - 1];
+    }
+
+    protected _processMessage(socket: Socket, callback: () => void) {
+        if (!this.maxRequestsPerSecond || socket.requestsCount < this.maxRequestsPerSecond) {
+            callback();
+        } else {
+            this._actionQueue.push(() => this._processMessage(socket, callback));
+        }
+    }
+
+    protected _flushRequestsCount() {
+        for (const wss of this._wss) {
+            wss.requestsCount = 0;
+        }
+
+        for (const action of this._actionQueue) {
+            action();
         }
     }
 
@@ -227,26 +344,10 @@ export abstract class BasicClient extends EventEmitter implements IClient {
      * is only called in the subscribe method. Multiple calls
      * have no effect.
      */
-    protected _connect() {
-        if (!this._wss) {
-            this._wss = this._wssFactory(this.wssPath);
-            this._wss.on("error", this._onError.bind(this));
-            this._wss.on("connecting", this._onConnecting.bind(this));
-            this._wss.on("connected", this._onConnected.bind(this));
-            this._wss.on("disconnected", this._onDisconnected.bind(this));
-            this._wss.on("closing", this._onClosing.bind(this));
-            this._wss.on("closed", this._onClosed.bind(this));
-            this._wss.on("message", (msg: string) => {
-                try {
-                    this._onMessage(msg);
-                } catch (ex) {
-                    this._onError(ex);
-                }
-            });
+    protected async _connect() {
+        if (this._wss.length === 0) {
             this._beforeConnect();
-
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            this._wss.connect();
+            await this._createConnection();
         }
     }
 
@@ -275,22 +376,28 @@ export abstract class BasicClient extends EventEmitter implements IClient {
     protected _onConnected() {
         this.emit("connected");
         for (const [marketSymbol, market] of this._tickerSubs) {
-            this._sendSubTicker(marketSymbol, market);
+            this._tickerSubs.delete(marketSymbol);
+            void this.subscribeTicker(market.market);
         }
         for (const [marketSymbol, market] of this._candleSubs) {
-            this._sendSubCandles(marketSymbol, market);
+            this._candleSubs.delete(marketSymbol);
+            void this.subscribeCandles(market.market);
         }
         for (const [marketSymbol, market] of this._tradeSubs) {
-            this._sendSubTrades(marketSymbol, market);
+            this._tradeSubs.delete(marketSymbol);
+            void this.subscribeTrades(market.market);
         }
         for (const [marketSymbol, market] of this._level2SnapshotSubs) {
-            this._sendSubLevel2Snapshots(marketSymbol, market);
+            this._level2SnapshotSubs.delete(marketSymbol);
+            void this.subscribeLevel2Snapshots(market.market);
         }
         for (const [marketSymbol, market] of this._level2UpdateSubs) {
-            this._sendSubLevel2Updates(marketSymbol, market);
+            this._level2UpdateSubs.delete(marketSymbol);
+            void this.subscribeLevel2Updates(market.market);
         }
         for (const [marketSymbol, market] of this._level3UpdateSubs) {
-            this._sendSubLevel3Updates(marketSymbol, market);
+            this._level3SnapshotSubs.delete(marketSymbol);
+            void this.subscribeLevel3Updates(market.market);
         }
         this._watcher.start();
     }
@@ -337,31 +444,31 @@ export abstract class BasicClient extends EventEmitter implements IClient {
 
     protected abstract _onMessage(msg: any);
 
-    protected abstract _sendSubTicker(remoteId: string, market: Market);
+    protected abstract _sendSubTicker(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubCandles(remoteId: string, market: Market);
+    protected abstract _sendSubCandles(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubCandles(remoteId: string, market: Market);
+    protected abstract _sendUnsubCandles(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubTicker(remoteId: string, market: Market);
+    protected abstract _sendUnsubTicker(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubTrades(remoteId: string, market: Market);
+    protected abstract _sendSubTrades(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubTrades(remoteId: string, market: Market);
+    protected abstract _sendUnsubTrades(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubLevel2Snapshots(remoteId: string, market: Market);
+    protected abstract _sendSubLevel2Snapshots(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubLevel2Snapshots(remoteId: string, market: Market);
+    protected abstract _sendUnsubLevel2Snapshots(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubLevel2Updates(remoteId: string, market: Market);
+    protected abstract _sendSubLevel2Updates(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubLevel2Updates(remoteId: string, market: Market);
+    protected abstract _sendUnsubLevel2Updates(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubLevel3Snapshots(remoteId: string, market: Market);
+    protected abstract _sendSubLevel3Snapshots(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubLevel3Snapshots(remoteId: string, market: Market);
+    protected abstract _sendUnsubLevel3Snapshots(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendSubLevel3Updates(remoteId: string, market: Market);
+    protected abstract _sendSubLevel3Updates(remoteId: string, market: AssignedMarket);
 
-    protected abstract _sendUnsubLevel3Updates(remoteId: string, market: Market);
+    protected abstract _sendUnsubLevel3Updates(remoteId: string, market: AssignedMarket);
 }
