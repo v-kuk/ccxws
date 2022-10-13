@@ -250,11 +250,8 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
 
             map.set(remote_id, assignedMarket);
             socketToSubscribe
-                .then(socket => {
-                    this._processMessage(socket, () => {
-                        sendFn(remote_id, assignedMarket);
-                    });
-                    }
+                .then(socket =>
+                    this._processAction(socket, () => sendFn(remote_id, assignedMarket))
                 )
                 .catch(err => {
                   throw new Error(err);
@@ -345,11 +342,11 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
         return this._wss[this._wss.length - 1];
     }
 
-    protected _processMessage(socket: Socket, callback: () => void) {
+    protected _processAction(socket: Socket, callback: () => void) {
         if (!this.maxRequestsPerSecond || socket.requestsCount < this.maxRequestsPerSecond) {
             callback();
         } else {
-            this._actionQueue.push(() => this._processMessage(socket, callback));
+            this._actionQueue.push(() => this._processAction(socket, callback));
         }
     }
 
