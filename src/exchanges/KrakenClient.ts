@@ -52,7 +52,7 @@ export class KrakenClient extends BasicRLClient {
         autoloadSymbolMaps = true,
         watcherMs,
         maxSocketSubs = null,
-        maxRequestsPerSecond = null
+        maxRequestsPerSecond = null,
     }: KrakenClientOptions = {}) {
         super(wssPath, "Kraken", undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
 
@@ -112,8 +112,7 @@ export class KrakenClient extends BasicRLClient {
     protected _wsSymbolsFromSubMap(map: MarketMap, socketId: number) {
         const restSymbols = new Array<string>();
         map.forEach((value: AssignedMarket, key: string) => {
-            if (value.socketId === socketId)
-                restSymbols.push(key);
+            if (value.socketId === socketId) restSymbols.push(key);
         });
 
         return restSymbols.map(p => this.fromRestMap.get(p)).filter(p => p);
@@ -153,7 +152,8 @@ export class KrakenClient extends BasicRLClient {
     ) {
         this._debounce(debounceKey, () => {
             const wsSymbols = this._wsSymbolsFromSubMap(subMap, socketId);
-            if (!this._wss || this._wss.length === 0 || !this._wss[socketId].connection.isConnected) return;
+            if (!this._wss || this._wss.length === 0 || !this._wss[socketId].connection.isConnected)
+                return;
 
             this._wss[socketId].requestsCount++;
             this._wss[socketId].connection.send(
@@ -245,7 +245,10 @@ export class KrakenClient extends BasicRLClient {
         const { socketId } = assignedMarket;
 
         const interval = getCandlePeriod(this.candlePeriod);
-        this._debounceSend("sub-candles", this._candleSubs, socketId, true, { name: "ohlc", interval });
+        this._debounceSend("sub-candles", this._candleSubs, socketId, true, {
+            name: "ohlc",
+            interval,
+        });
     }
 
     /**
@@ -263,7 +266,10 @@ export class KrakenClient extends BasicRLClient {
         const { socketId } = assignedMarket;
 
         const interval = getCandlePeriod(this.candlePeriod);
-        this._debounceSend("unsub-candles", this._candleSubs, socketId, false, { name: "ohlc", interval });
+        this._debounceSend("unsub-candles", this._candleSubs, socketId, false, {
+            name: "ohlc",
+            interval,
+        });
     }
 
     /**
@@ -298,7 +304,9 @@ export class KrakenClient extends BasicRLClient {
     protected _sendUnsubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
         const { socketId } = assignedMarket;
 
-        this._debounceSend("unsub-l2updates", this._level2UpdateSubs, socketId, false, { name: "book" });
+        this._debounceSend("unsub-l2updates", this._level2UpdateSubs, socketId, false, {
+            name: "book",
+        });
     }
 
     /**
@@ -369,8 +377,7 @@ export class KrakenClient extends BasicRLClient {
             if (!market) return;
 
             const ticker = this._constructTicker(details, market.market);
-            if (ticker)
-                this.emit("ticker", ticker, market.market);
+            if (ticker) this.emit("ticker", ticker, market.market);
 
             return;
         }
@@ -383,8 +390,7 @@ export class KrakenClient extends BasicRLClient {
 
                 for (const t of msg[1]) {
                     const trade = this._constructTrade(t, market.market);
-                    if (trade)
-                        this.emit("trade", trade, market.market);
+                    if (trade) this.emit("trade", trade, market.market);
                 }
             }
             return;
@@ -410,12 +416,10 @@ export class KrakenClient extends BasicRLClient {
             const isSnapshot = !!msg[1].as;
             if (isSnapshot) {
                 const l2snapshot = this._constructLevel2Snapshot(msg[1], market.market);
-                if (l2snapshot)
-                    this.emit("l2snapshot", l2snapshot, market.market, msg);
+                if (l2snapshot) this.emit("l2snapshot", l2snapshot, market.market, msg);
             } else {
                 const l2update = this._constructLevel2Update(msg, market.market);
-                if (l2update)
-                    this.emit("l2update", l2update, market.market, msg);
+                if (l2update) this.emit("l2update", l2update, market.market, msg);
             }
         }
         return;

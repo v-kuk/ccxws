@@ -6,47 +6,51 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import moment from "moment";
-import { BasicClient } from "../BasicClient";
-import { ClientOptions } from "../ClientOptions";
+import { BasicRLClient } from "../BasicRLClient";
+import { ClientRLOptions } from "../ClientOptions";
 import { Level2Point } from "../Level2Point";
 import { Level2Update } from "../Level2Update";
 import { NotImplementedFn } from "../NotImplementedFn";
 import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 
-export class PoloniexClient extends BasicClient {
+export class PoloniexClient extends BasicRLClient {
     protected static _pingTimeout: any;
 
-    constructor({ wssPath = "wss://ws.poloniex.com/ws/public", watcherMs }: ClientOptions = {}) {
-        super(wssPath, "Poloniex", undefined, watcherMs);
+    constructor({
+        wssPath = "wss://ws.poloniex.com/ws/public",
+        watcherMs,
+        maxRequestsPerSecond = 450,
+    }: ClientRLOptions = {}) {
+        super(wssPath, "Poloniex", undefined, watcherMs, undefined, maxRequestsPerSecond);
 
         this.hasTickers = true;
         this.hasTrades = true;
         this.hasLevel2Updates = true;
     }
 
-    protected _sendSubTicker(remote_id: string) {
-        this._sendSubscribe("ticker", remote_id);
+    protected _sendSubTicker(remote_id: string, { socketId }) {
+        this._sendSubscribe("ticker", remote_id, socketId);
     }
 
-    protected _sendUnsubTicker(remote_id: string) {
-        this._sendUnsubscribe("ticker", remote_id);
+    protected _sendUnsubTicker(remote_id: string, { socketId }) {
+        this._sendUnsubscribe("ticker", remote_id, socketId);
     }
 
-    protected _sendSubTrades(remote_id) {
-        this._sendSubscribe("trades", remote_id);
+    protected _sendSubTrades(remote_id: string, { socketId }) {
+        this._sendSubscribe("trades", remote_id, socketId);
     }
 
-    protected _sendUnsubTrades(remote_id: string) {
-        this._sendUnsubscribe("trades", remote_id);
+    protected _sendUnsubTrades(remote_id: string, { socketId }) {
+        this._sendUnsubscribe("trades", remote_id, socketId);
     }
 
-    protected _sendSubLevel2Updates(remote_id: string) {
-        this._sendSubscribe("book", remote_id);
+    protected _sendSubLevel2Updates(remote_id: string, { socketId }) {
+        this._sendSubscribe("book", remote_id, socketId);
     }
 
-    protected _sendUnsubLevel2Updates(remote_id: string) {
-        this._sendUnsubscribe("book", remote_id);
+    protected _sendUnsubLevel2Updates(remote_id: string, { socketId }) {
+        this._sendUnsubscribe("book", remote_id, socketId);
     }
 
     protected _sendSubCandles = NotImplementedFn;
@@ -58,8 +62,9 @@ export class PoloniexClient extends BasicClient {
     protected _sendSubLevel3Updates = NotImplementedFn;
     protected _sendUnsubLevel3Updates = NotImplementedFn;
 
-    protected _sendSubscribe(channel: string, symbol: string): void {
-        this._wss.send(
+    protected _sendSubscribe(channel: string, symbol: string, socketId: number): void {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 event: "subscribe",
                 channel: [channel],
@@ -68,8 +73,9 @@ export class PoloniexClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubscribe(channel: string, symbol: string): void {
-        this._wss.send(
+    protected _sendUnsubscribe(channel: string, symbol: string, socketId: number): void {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 event: "unsubscribe",
                 channel: [channel],
@@ -80,7 +86,10 @@ export class PoloniexClient extends BasicClient {
 
     protected _ping(): void {
         PoloniexClient._pingTimeout = setTimeout(() => {
-            if (this._wss) this._wss.send(JSON.stringify({ event: "ping" }));
+            for (const wss of this._wss) {
+                if (wss.connection.isConnected)
+                    wss.connection.send(JSON.stringify({ event: "ping" }));
+            }
         }, 29000);
     }
 
@@ -111,8 +120,8 @@ export class PoloniexClient extends BasicClient {
                 const market = this._tickerSubs.get(data.symbol);
                 if (!market) return;
 
-                const ticker = this._createTicker(data, market);
-                this.emit("ticker", ticker, market);
+                const ticker = this._createTicker(data, market.market);
+                this.emit("ticker", ticker, market.market);
                 return;
             }
 
@@ -121,8 +130,8 @@ export class PoloniexClient extends BasicClient {
                 const market = this._tradeSubs.get(data.symbol);
                 if (!market) return;
 
-                const trade = this._createTrade(data, market);
-                this.emit("trade", trade, market);
+                const trade = this._createTrade(data, market.market);
+                this.emit("trade", trade, market.market);
                 return;
             }
 
@@ -131,7 +140,7 @@ export class PoloniexClient extends BasicClient {
                 const market = this._level2UpdateSubs.get(data.symbol);
                 if (!market) return;
 
-                this._onLevel2Update(msg.data, market);
+                this._onLevel2Update(msg.data, market.market);
                 return;
             }
         } catch (e) {

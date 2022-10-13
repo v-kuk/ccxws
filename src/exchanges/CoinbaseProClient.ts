@@ -5,8 +5,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import moment = require("moment");
-import { BasicClient } from "../BasicClient";
-import { ClientOptions } from "../ClientOptions";
+import { BasicRLClient } from "../BasicRLClient";
+import { ClientRLOptions } from "../ClientOptions";
 import { Level2Point } from "../Level2Point";
 import { Level2Snapshot } from "../Level2Snapshots";
 import { Level2Update } from "../Level2Update";
@@ -17,17 +17,22 @@ import { NotImplementedFn } from "../NotImplementedFn";
 import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 
-export class CoinbaseProClient extends BasicClient {
-    constructor({ wssPath = "wss://ws-feed.pro.coinbase.com", watcherMs }: ClientOptions = {}) {
-        super(wssPath, "CoinbasePro", undefined, watcherMs);
+export class CoinbaseProClient extends BasicRLClient {
+    constructor({
+        wssPath = "wss://ws-feed.pro.coinbase.com",
+        watcherMs,
+        maxRequestsPerSecond = 90,
+    }: ClientRLOptions = {}) {
+        super(wssPath, "CoinbasePro", undefined, watcherMs, undefined, maxRequestsPerSecond);
         this.hasTickers = true;
         this.hasTrades = true;
         this.hasLevel2Updates = true;
         this.hasLevel3Updates = true;
     }
 
-    protected _sendSubTicker(remote_id) {
-        this._wss.send(
+    protected _sendSubTicker(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "subscribe",
                 product_ids: [remote_id],
@@ -36,8 +41,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubTicker(remote_id) {
-        this._wss.send(
+    protected _sendUnsubTicker(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "unsubscribe",
                 product_ids: [remote_id],
@@ -46,8 +52,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendSubTrades(remote_id) {
-        this._wss.send(
+    protected _sendSubTrades(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "subscribe",
                 product_ids: [remote_id],
@@ -56,8 +63,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubTrades(remote_id) {
-        this._wss.send(
+    protected _sendUnsubTrades(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "unsubscribe",
                 product_ids: [remote_id],
@@ -66,8 +74,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendSubLevel2Updates(remote_id) {
-        this._wss.send(
+    protected _sendSubLevel2Updates(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "subscribe",
                 product_ids: [remote_id],
@@ -76,8 +85,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel2Updates(remote_id) {
-        this._wss.send(
+    protected _sendUnsubLevel2Updates(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "unsubscribe",
                 product_ids: [remote_id],
@@ -86,8 +96,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendSubLevel3Updates(remote_id) {
-        this._wss.send(
+    protected _sendSubLevel3Updates(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "subscribe",
                 product_ids: [remote_id],
@@ -96,8 +107,9 @@ export class CoinbaseProClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel3Updates(remote_id) {
-        this._wss.send(
+    protected _sendUnsubLevel3Updates(remote_id, { socketId }) {
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 type: "unsubscribe",
                 product_ids: [remote_id],
@@ -119,25 +131,25 @@ export class CoinbaseProClient extends BasicClient {
         const { type, product_id } = msg;
 
         if (type === "ticker" && this._tickerSubs.has(product_id)) {
-            const market = this._tickerSubs.get(product_id);
+            const { market } = this._tickerSubs.get(product_id);
             const ticker = this._constructTicker(msg, market);
             this.emit("ticker", ticker, market);
         }
 
         if (type === "match" && this._tradeSubs.has(product_id)) {
-            const market = this._tradeSubs.get(product_id);
+            const { market } = this._tradeSubs.get(product_id);
             const trade = this._constructTrade(msg, market);
             this.emit("trade", trade, market);
         }
 
         if (type === "snapshot" && this._level2UpdateSubs.has(product_id)) {
-            const market = this._level2UpdateSubs.get(product_id);
+            const { market } = this._level2UpdateSubs.get(product_id);
             const snapshot = this._constructLevel2Snapshot(msg, market);
             this.emit("l2snapshot", snapshot, market);
         }
 
         if (type === "l2update" && this._level2UpdateSubs.has(product_id)) {
-            const market = this._level2UpdateSubs.get(product_id);
+            const { market } = this._level2UpdateSubs.get(product_id);
             const update = this._constructLevel2Update(msg, market);
             this.emit("l2update", update, market);
         }
@@ -150,7 +162,7 @@ export class CoinbaseProClient extends BasicClient {
                 type === "change") &&
             this._level3UpdateSubs.has(product_id)
         ) {
-            const market = this._level3UpdateSubs.get(product_id);
+            const { market } = this._level3UpdateSubs.get(product_id);
             const update = this._constructLevel3Update(msg, market);
             this.emit("l3update", update, market);
             return;

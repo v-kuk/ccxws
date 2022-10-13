@@ -17,13 +17,7 @@ import * as zlib from "../ZlibUtils";
 export class HuobiBase extends BasicRLClient {
     public candlePeriod: CandlePeriod;
 
-    constructor({
-        name,
-        wssPath,
-        watcherMs,
-        maxSocketSubs = null,
-        maxRequestsPerSecond = 10
-    }) {
+    constructor({ name, wssPath, watcherMs, maxSocketSubs = null, maxRequestsPerSecond = 10 }) {
         super(wssPath, name, undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
         this.hasTickers = true;
         this.hasTrades = true;

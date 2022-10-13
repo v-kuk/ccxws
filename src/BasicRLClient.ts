@@ -251,10 +251,10 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
             map.set(remote_id, assignedMarket);
             socketToSubscribe
                 .then(socket =>
-                    this._processAction(socket, () => sendFn(remote_id, assignedMarket))
+                    this._processAction(socket, () => sendFn(remote_id, assignedMarket)),
                 )
                 .catch(err => {
-                  throw new Error(err);
+                    throw new Error(err);
                 });
 
             return true;
@@ -292,16 +292,14 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
             return await wait();
         }
 
-
         this._creatingSocket = true;
 
         if (!this.wssPath && !this._wssPath) {
-          const wait = () =>
+            const wait = () =>
                 new Promise<Socket>(resolve => {
                     let check = 0;
                     const interval = setInterval(() => {
-                        if (check > 5)
-                            throw new Error("There is no wss url provided");
+                        if (check > 5) throw new Error("There is no wss url provided");
 
                         if (this.wssPath || this._wssPath) {
                             clearInterval(interval);
