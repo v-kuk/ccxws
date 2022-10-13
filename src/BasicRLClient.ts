@@ -251,14 +251,9 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
             map.set(remote_id, assignedMarket);
             socketToSubscribe
                 .then(socket => {
-                    // eslint-disable-next-line @typescript-eslint/unbound-method
-                    console.log("then", this._processMessage);
-
                     this._processMessage(socket, () => {
-                        console.log("callback");
-
                         sendFn(remote_id, assignedMarket);
-                    })
+                    });
                     }
                 )
                 .catch(err => {
@@ -351,10 +346,6 @@ export abstract class BasicRLClient extends EventEmitter implements IClient {
     }
 
     protected _processMessage(socket: Socket, callback: () => void) {
-        console.log("process");
-
-        console.log(!this.maxRequestsPerSecond || socket.requestsCount < this.maxRequestsPerSecond);
-
         if (!this.maxRequestsPerSecond || socket.requestsCount < this.maxRequestsPerSecond) {
             callback();
         } else {
