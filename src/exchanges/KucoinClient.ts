@@ -5,9 +5,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-floating-promises */
 /* eslint-disable @typescript-eslint/no-implied-eval */
-import { BasicClient } from "../BasicClient";
+import { AssignedMarket, BasicRLClient } from "../BasicRLClient";
 import { CandlePeriod } from "../CandlePeriod";
-import { ClientOptions } from "../ClientOptions";
+import { ClientRLOptions } from "../ClientOptions";
 import { CancelableFn } from "../flowcontrol/Fn";
 import { wait } from "../Util";
 import crypto from "crypto";
@@ -25,7 +25,7 @@ import { Level3Point } from "../Level3Point";
 import { Level3Snapshot } from "../Level3Snapshot";
 import { NotImplementedFn } from "../NotImplementedFn";
 
-export type KucoinClientOptions = ClientOptions & {
+export type KucoinClientOptions = ClientRLOptions & {
     sendThrottleMs?: number;
     restThrottleMs?: number;
 };
@@ -37,7 +37,7 @@ export type KucoinClientOptions = ClientOptions & {
  * To work around this will require creating multiple clients if you makem ore than 100
  * subscriptions.
  */
-export class KucoinClient extends BasicClient {
+export class KucoinClient extends BasicRLClient {
     public candlePeriod: CandlePeriod;
     public readonly restThrottleMs: number;
     public readonly connectInitTimeoutMs: number;
@@ -47,15 +47,17 @@ export class KucoinClient extends BasicClient {
     protected _sendMessage: CancelableFn;
     protected _requestLevel2Snapshot: CancelableFn;
     protected _requestLevel3Snapshot: CancelableFn;
-    protected _pingInterval: NodeJS.Timeout;
+    protected _pingInterval: Array<NodeJS.Timeout>;
 
     constructor({
         wssPath,
         watcherMs,
         sendThrottleMs = 10,
         restThrottleMs = 250,
+        maxRequestsPerSecond = null,
+        maxSocketSubs = 45
     }: KucoinClientOptions = {}) {
-        super(wssPath, "KuCoin", undefined, watcherMs);
+        super(wssPath, "KuCoin", undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
         this.hasTickers = true;
         this.hasTrades = true;
         this.hasCandles = true;
@@ -64,6 +66,7 @@ export class KucoinClient extends BasicClient {
         this.hasLevel3Updates = false;
         this.candlePeriod = CandlePeriod._1m;
         this._pingIntervalTime = 50000;
+        this._pingInterval = new Array<NodeJS.Timeout>();
         this.restThrottleMs = restThrottleMs;
         this.connectInitTimeoutMs = 5000;
         this._sendMessage = throttle(this.__sendMessage.bind(this), sendThrottleMs);
@@ -84,23 +87,26 @@ export class KucoinClient extends BasicClient {
     }
 
     protected _beforeConnect() {
-        this._wss.on("connected", this._startPing.bind(this));
-        this._wss.on("disconnected", this._stopPing.bind(this));
-        this._wss.on("closed", this._stopPing.bind(this));
+        for (let i = 0; i < this._wss.length; i++) {
+            const wss = this._wss[i];
+            wss.connection.on("connected", this._startPing.bind(this, i));
+            wss.connection.on("disconnected", this._stopPing.bind(this, i));
+            wss.connection.on("closed", this._stopPing.bind(this, i));
+        }
     }
 
-    protected _startPing() {
-        clearInterval(this._pingInterval);
-        this._pingInterval = setInterval(this._sendPing.bind(this), this._pingIntervalTime);
+    protected _startPing(socketId: number) {
+        clearInterval(this._pingInterval[socketId]);
+        this._pingInterval[socketId] = setInterval(this._sendPing.bind(this, socketId), this._pingIntervalTime);
     }
 
-    protected _stopPing() {
-        clearInterval(this._pingInterval);
+    protected _stopPing(socketId: number) {
+        clearInterval(this._pingInterval[socketId]);
     }
 
-    protected _sendPing() {
-        if (this._wss) {
-            this._wss.send(
+    protected _sendPing(socketId: number) {
+        if (this._wss && this._wss[socketId] && this._wss[socketId]?.connection?.isConnected) {
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     id: new Date().getTime(),
                     type: "ping",
@@ -115,19 +121,17 @@ export class KucoinClient extends BasicClient {
      * are idempotent and only a single socket connection is created. Then the _connectAsync
      * call is performed that does the REST token fetching and the connection.
      */
-    protected _connect() {
-        if (!this._wss) {
-            this._wss = { status: "connecting" } as any;
+    protected async _connect() {
+
+        if (this._wss.length == 0) {
             if (this.wssPath) super._connect();
-            else this._connectAsync();
+            else await this._connectAsync();
         }
     }
 
     protected async _connectAsync() {
-        let wssPath;
-
         // Retry http request until successful
-        while (!wssPath) {
+        while (!this._wssPath) {
             try {
                 const raw: any = await https.post("https://openapi-v2.kucoin.com/api/v1/bullet-public"); // prettier-ignore
                 if (!raw.data || !raw.data.token) throw new Error("Unexpected token response");
@@ -135,38 +139,25 @@ export class KucoinClient extends BasicClient {
                 const { endpoint, pingInterval } = instanceServers[0];
                 this._connectId = crypto.randomBytes(24).toString("hex");
                 this._pingIntervalTime = pingInterval;
-                wssPath = `${endpoint}?token=${token}&connectId=${this._connectId}`;
+                this._wssPath = `${endpoint}?token=${token}&connectId=${this._connectId}`;
             } catch (ex) {
                 this._onError(ex);
                 await wait(this.connectInitTimeoutMs);
             }
         }
 
-        // Construct a socket and bind all events
-        this._wss = this._wssFactory(wssPath);
-        this._wss.on("error", this._onError.bind(this));
-        this._wss.on("connecting", this._onConnecting.bind(this));
-        this._wss.on("connected", this._onConnected.bind(this));
-        this._wss.on("disconnected", this._onDisconnected.bind(this));
-        this._wss.on("closing", this._onClosing.bind(this));
-        this._wss.on("closed", this._onClosed.bind(this));
-        this._wss.on("message", msg => {
-            try {
-                this._onMessage(msg);
-            } catch (ex) {
-                this._onError(ex);
-            }
-        });
-        if (this._beforeConnect) this._beforeConnect();
-        this._wss.connect();
+        await super._connect();
     }
 
     protected __sendMessage(msg) {
-        this._wss.send(msg);
+        this._wss[0].connection.send(msg);
     }
 
-    protected _sendSubTicker(remote_id: string) {
-        this._wss.send(
+    protected _sendSubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "subscribe",
@@ -177,8 +168,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubTicker(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "unsubscribe",
@@ -189,8 +183,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendSubTrades(remote_id: string) {
-        this._wss.send(
+    protected _sendSubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "subscribe",
@@ -201,8 +198,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubTrades(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "unsubscribe",
@@ -213,8 +213,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendSubCandles(remote_id: string) {
-        this._wss.send(
+    protected _sendSubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "subscribe",
@@ -225,8 +228,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubCandles(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "unsubscribe",
@@ -237,11 +243,14 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendSubLevel2Updates(remote_id: string) {
-        const market = this._level2UpdateSubs.get(remote_id);
+    protected _sendSubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { market } = this._level2UpdateSubs.get(remote_id);
         this._requestLevel2Snapshot(market);
 
-        this._wss.send(
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "subscribe",
@@ -251,8 +260,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel2Updates(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "unsubscribe",
@@ -262,11 +274,14 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendSubLevel3Updates(remote_id: string) {
-        const market = this._level3UpdateSubs.get(remote_id);
+    protected _sendSubLevel3Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { market } = this._level3UpdateSubs.get(remote_id);
         this._requestLevel3Snapshot(market);
 
-        this._wss.send(
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "subscribe",
@@ -276,8 +291,11 @@ export class KucoinClient extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel3Updates(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubLevel3Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].requestsCount++;
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 id: new Date().getTime(),
                 type: "unsubscribe",
@@ -378,7 +396,7 @@ export class KucoinClient extends BasicClient {
 
     protected _processTrades(msg: any) {
         let { symbol, time, side, size, price, tradeId, makerOrderId, takerOrderId } = msg.data;
-        const market = this._tradeSubs.get(symbol);
+        const { market } = this._tradeSubs.get(symbol);
         if (!market) {
             return;
         }
@@ -427,7 +445,7 @@ export class KucoinClient extends BasicClient {
    */
     protected _processCandles(msg: any) {
         const { symbol, candles } = msg.data;
-        const market = this._candleSubs.get(symbol);
+        const { market } = this._candleSubs.get(symbol);
         if (!market) return;
 
         const result = new Candle(
@@ -455,7 +473,7 @@ export class KucoinClient extends BasicClient {
             sell,
             buy,
         } = msg.data.data;
-        const market = this._tickerSubs.get(symbol);
+        const { market } = this._tickerSubs.get(symbol);
 
         if (!market) {
             return;
@@ -503,7 +521,7 @@ export class KucoinClient extends BasicClient {
    */
     protected _processL2Update(msg: any) {
         const { symbol, changes, sequenceStart, sequenceEnd } = msg.data;
-        const market = this._level2UpdateSubs.get(symbol);
+        const { market } = this._level2UpdateSubs.get(symbol);
 
         if (!market) {
             return;
@@ -599,7 +617,7 @@ export class KucoinClient extends BasicClient {
     protected _processL3UpdateReceived(msg: any) {
         const { symbol, sequence, orderId, clientOid, ts } = msg.data;
 
-        const market = this._level3UpdateSubs.get(symbol);
+        const { market } = this._level3UpdateSubs.get(symbol);
         if (!market) return;
 
         const point = new Level3Point(orderId, "0", "0", { type: msg.subject, clientOid, ts });
@@ -637,7 +655,7 @@ export class KucoinClient extends BasicClient {
     protected _processL3UpdateOpen(msg: any) {
         const { symbol, sequence, side, orderTime, size, orderId, price, ts } = msg.data;
 
-        const market = this._level3UpdateSubs.get(symbol);
+        const { market } = this._level3UpdateSubs.get(symbol);
         if (!market) return;
 
         const asks = [];
@@ -680,7 +698,7 @@ export class KucoinClient extends BasicClient {
     protected _processL3UpdateDone(msg: any) {
         const { symbol, sequence, orderId, reason, ts } = msg.data;
 
-        const market = this._level3UpdateSubs.get(symbol);
+        const { market } = this._level3UpdateSubs.get(symbol);
         if (!market) return;
 
         const point = new Level3Point(orderId, "0", "0", { type: msg.subject, reason, ts });
@@ -734,7 +752,7 @@ export class KucoinClient extends BasicClient {
             ts,
         } = msg.data;
 
-        const market = this._level3UpdateSubs.get(symbol);
+        const { market } = this._level3UpdateSubs.get(symbol);
         if (!market) return;
 
         const asks = [];
@@ -790,8 +808,10 @@ export class KucoinClient extends BasicClient {
    */
     protected _processL3UpdateUpdate(msg: any) {
         const { symbol, sequence, orderId, size, ts } = msg.data;
-        const market = this._level3UpdateSubs.get(symbol);
+
+        const { market } = this._level3UpdateSubs.get(symbol);
         if (!market) return;
+
         const point = new Level3Point(orderId, "0", size, { type: msg.subject, ts });
         const update = new Level3Update({
             exchange: this.name,
