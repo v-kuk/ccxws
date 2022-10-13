@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import { BasicClient } from "../BasicClient";
+import { AssignedMarket, BasicRLClient } from "../BasicRLClient";
 import { Candle } from "../Candle";
 import { CandlePeriod } from "../CandlePeriod";
 import { Level2Point } from "../Level2Point";
@@ -14,11 +14,17 @@ import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 import * as zlib from "../ZlibUtils";
 
-export class HuobiBase extends BasicClient {
+export class HuobiBase extends BasicRLClient {
     public candlePeriod: CandlePeriod;
 
-    constructor({ name, wssPath, watcherMs }) {
-        super(wssPath, name, undefined, watcherMs);
+    constructor({
+        name,
+        wssPath,
+        watcherMs,
+        maxSocketSubs = null,
+        maxRequestsPerSecond = 10
+    }) {
+        super(wssPath, name, undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
         this.hasTickers = true;
         this.hasTrades = true;
         this.hasCandles = true;
@@ -28,13 +34,17 @@ export class HuobiBase extends BasicClient {
     }
 
     protected _sendPong(ts: number) {
-        if (this._wss) {
-            this._wss.send(JSON.stringify({ pong: ts }));
+        if (this._wss.length > 0) {
+            for (const wss of this._wss) {
+                wss.connection.send(JSON.stringify({ pong: ts }));
+            }
         }
     }
 
-    protected _sendSubTicker(remote_id: string) {
-        this._wss.send(
+    protected _sendSubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 sub: `market.${remote_id}.detail`,
                 id: remote_id,
@@ -42,8 +52,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendUnsubTicker(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 unsub: `market.${remote_id}.detail`,
                 id: remote_id,
@@ -51,8 +63,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendSubTrades(remote_id: string) {
-        this._wss.send(
+    protected _sendSubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 sub: `market.${remote_id}.trade.detail`,
                 id: remote_id,
@@ -60,8 +74,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendUnsubTrades(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 unsub: `market.${remote_id}.trade.detail`,
                 id: remote_id,
@@ -69,8 +85,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendSubCandles(remote_id: string) {
-        this._wss.send(
+    protected _sendSubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 sub: `market.${remote_id}.kline.${candlePeriod(this.candlePeriod)}`,
                 id: remote_id,
@@ -78,8 +96,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendUnsubCandles(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 unsub: `market.${remote_id}.kline.${candlePeriod(this.candlePeriod)}`,
                 id: remote_id,
@@ -87,8 +107,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendSubLevel2Updates(remote_id: string) {
-        this._wss.send(
+    protected _sendSubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 sub: `market.${remote_id}.depth.size_150.high_freq`,
                 data_type: "incremental",
@@ -97,8 +119,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel2Updates(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 unsub: `market.${remote_id}.depth.size_150.high_freq`,
                 data_type: "incremental",
@@ -107,8 +131,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendSubLevel2Snapshots(remote_id: string) {
-        this._wss.send(
+    protected _sendSubLevel2Snapshots(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 sub: `market.${remote_id}.depth.step0`,
                 id: "depth_" + remote_id,
@@ -116,8 +142,10 @@ export class HuobiBase extends BasicClient {
         );
     }
 
-    protected _sendUnsubLevel2Snapshots(remote_id: string) {
-        this._wss.send(
+    protected _sendUnsubLevel2Snapshots(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._wss[socketId].connection.send(
             JSON.stringify({
                 unsub: `market.${remote_id}.depth.step0`,
             }),
@@ -157,8 +185,8 @@ export class HuobiBase extends BasicClient {
                 if (!market) return;
 
                 for (const datum of msgs.tick.data) {
-                    const trade = this._constructTradesFromMessage(datum, market);
-                    this.emit("trade", trade, market);
+                    const trade = this._constructTradesFromMessage(datum, market.market);
+                    this.emit("trade", trade, market.market);
                 }
                 return;
             }
@@ -170,7 +198,7 @@ export class HuobiBase extends BasicClient {
                 if (!market) return;
 
                 const candle = this._constructCandle(msgs);
-                this.emit("candle", candle, market);
+                this.emit("candle", candle, market.market);
             }
 
             // tickers
@@ -179,8 +207,8 @@ export class HuobiBase extends BasicClient {
                 const market = this._tickerSubs.get(remoteId);
                 if (!market) return;
 
-                const ticker = this._constructTicker(msgs.tick, market);
-                this.emit("ticker", ticker, market);
+                const ticker = this._constructTicker(msgs.tick, market.market);
+                this.emit("ticker", ticker, market.market);
                 return;
             }
 
@@ -191,11 +219,11 @@ export class HuobiBase extends BasicClient {
                 if (!market) return;
 
                 if (msgs.tick.event === "snapshot") {
-                    const snapshot = this._constructL2UpdateSnapshot(msgs, market);
-                    this.emit("l2snapshot", snapshot, market);
+                    const snapshot = this._constructL2UpdateSnapshot(msgs, market.market);
+                    this.emit("l2snapshot", snapshot, market.market);
                 } else {
-                    const update = this._constructL2Update(msgs, market);
-                    this.emit("l2update", update, market);
+                    const update = this._constructL2Update(msgs, market.market);
+                    this.emit("l2update", update, market.market);
                 }
                 return;
             }
@@ -206,8 +234,8 @@ export class HuobiBase extends BasicClient {
                 const market = this._level2SnapshotSubs.get(remoteId);
                 if (!market) return;
 
-                const snapshot = this._constructLevel2Snapshot(msgs, market);
-                this.emit("l2snapshot", snapshot, market);
+                const snapshot = this._constructLevel2Snapshot(msgs, market.market);
+                this.emit("l2snapshot", snapshot, market.market);
                 return;
             }
         });

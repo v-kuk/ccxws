@@ -5,10 +5,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import Decimal from "decimal.js";
-import { BasicClient, MarketMap } from "../BasicClient";
+import { AssignedMarket, BasicRLClient, MarketMap } from "../BasicRLClient";
 import { Candle } from "../Candle";
 import { CandlePeriod } from "../CandlePeriod";
-import { ClientOptions } from "../ClientOptions";
+import { ClientRLOptions } from "../ClientOptions";
 import * as https from "../Https";
 import { Level2Point } from "../Level2Point";
 import { Level2Snapshot } from "../Level2Snapshots";
@@ -17,7 +17,7 @@ import { NotImplementedFn } from "../NotImplementedFn";
 import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 
-export type KrakenClientOptions = ClientOptions & { autoloadSymbolMaps?: boolean };
+export type KrakenClientOptions = ClientRLOptions & { autoloadSymbolMaps?: boolean };
 
 /**
     Kraken's API documentation is availble at:
@@ -37,7 +37,7 @@ export type KrakenClientOptions = ClientOptions & { autoloadSymbolMaps?: boolean
     This client will retrieve the market keys from those maps to
     determine the remoteIds to send to the server on all sub/unsub requests.
   */
-export class KrakenClient extends BasicClient {
+export class KrakenClient extends BasicRLClient {
     public candlePeriod: CandlePeriod;
     public bookDepth: number;
     public debounceWait: number;
@@ -51,8 +51,10 @@ export class KrakenClient extends BasicClient {
         wssPath = "wss://ws.kraken.com",
         autoloadSymbolMaps = true,
         watcherMs,
+        maxSocketSubs = null,
+        maxRequestsPerSecond = null
     }: KrakenClientOptions = {}) {
-        super(wssPath, "Kraken", undefined, watcherMs);
+        super(wssPath, "Kraken", undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
 
         this.hasTickers = true;
         this.hasTrades = true;
@@ -107,8 +109,13 @@ export class KrakenClient extends BasicClient {
 
     @param map subscription map such as _tickerSubs or _tradeSubs
    */
-    protected _wsSymbolsFromSubMap(map: MarketMap) {
-        const restSymbols = Array.from(map.keys());
+    protected _wsSymbolsFromSubMap(map: MarketMap, socketId: number) {
+        const restSymbols = new Array<string>();
+        map.forEach((value: AssignedMarket, key: string) => {
+            if (value.socketId === socketId)
+                restSymbols.push(key);
+        });
+
         return restSymbols.map(p => this.fromRestMap.get(p)).filter(p => p);
     }
 
@@ -140,13 +147,16 @@ export class KrakenClient extends BasicClient {
     protected _debounceSend(
         debounceKey: string,
         subMap: MarketMap,
+        socketId: number,
         subscribe: boolean,
         subscription: { name: string; [x: string]: any },
     ) {
         this._debounce(debounceKey, () => {
-            const wsSymbols = this._wsSymbolsFromSubMap(subMap);
-            if (!this._wss) return;
-            this._wss.send(
+            const wsSymbols = this._wsSymbolsFromSubMap(subMap, socketId);
+            if (!this._wss || this._wss.length === 0 || !this._wss[socketId].connection.isConnected) return;
+
+            this._wss[socketId].requestsCount++;
+            this._wss[socketId].connection.send(
                 JSON.stringify({
                     event: subscribe ? "subscribe" : "unsubscribe",
                     pair: wsSymbols,
@@ -166,8 +176,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendSubTicker() {
-        this._debounceSend("sub-ticker", this._tickerSubs, true, { name: "ticker" });
+    protected _sendSubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("sub-ticker", this._tickerSubs, socketId, true, { name: "ticker" });
     }
 
     /**
@@ -180,8 +192,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendUnsubTicker() {
-        this._debounceSend("unsub-ticker", this._tickerSubs, false, { name: "ticker" });
+    protected _sendUnsubTicker(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("unsub-ticker", this._tickerSubs, socketId, false, { name: "ticker" });
     }
 
     /**
@@ -194,8 +208,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendSubTrades() {
-        this._debounceSend("sub-trades", this._tradeSubs, true, { name: "trade" });
+    protected _sendSubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("sub-trades", this._tradeSubs, socketId, true, { name: "trade" });
     }
 
     /**
@@ -208,8 +224,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendUnsubTrades() {
-        this._debounceSend("unsub-trades", this._tradeSubs, false, { name: "trade" });
+    protected _sendUnsubTrades(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("unsub-trades", this._tradeSubs, socketId, false, { name: "trade" });
     }
 
     /**
@@ -223,9 +241,11 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendSubCandles() {
+    protected _sendSubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const interval = getCandlePeriod(this.candlePeriod);
-        this._debounceSend("sub-candles", this._candleSubs, true, { name: "ohlc", interval });
+        this._debounceSend("sub-candles", this._candleSubs, socketId, true, { name: "ohlc", interval });
     }
 
     /**
@@ -239,9 +259,11 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendUnsubCandles() {
+    protected _sendUnsubCandles(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
         const interval = getCandlePeriod(this.candlePeriod);
-        this._debounceSend("unsub-candles", this._candleSubs, false, { name: "ohlc", interval });
+        this._debounceSend("unsub-candles", this._candleSubs, socketId, false, { name: "ohlc", interval });
     }
 
     /**
@@ -254,8 +276,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendSubLevel2Updates() {
-        this._debounceSend("sub-l2updates", this._level2UpdateSubs, true, {
+    protected _sendSubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("sub-l2updates", this._level2UpdateSubs, socketId, true, {
             name: "book",
             depth: this.bookDepth,
         });
@@ -271,8 +295,10 @@ export class KrakenClient extends BasicClient {
       }
     }
    */
-    protected _sendUnsubLevel2Updates() {
-        this._debounceSend("unsub-l2updates", this._level2UpdateSubs, false, { name: "book" });
+    protected _sendUnsubLevel2Updates(remote_id: string, assignedMarket: AssignedMarket) {
+        const { socketId } = assignedMarket;
+
+        this._debounceSend("unsub-l2updates", this._level2UpdateSubs, socketId, false, { name: "book" });
     }
 
     /**
@@ -342,10 +368,10 @@ export class KrakenClient extends BasicClient {
             const market = this._tickerSubs.get(remote_id);
             if (!market) return;
 
-            const ticker = this._constructTicker(details, market);
-            if (ticker) {
-                this.emit("ticker", ticker, market);
-            }
+            const ticker = this._constructTicker(details, market.market);
+            if (ticker)
+                this.emit("ticker", ticker, market.market);
+
             return;
         }
 
@@ -356,10 +382,9 @@ export class KrakenClient extends BasicClient {
                 if (!market) return;
 
                 for (const t of msg[1]) {
-                    const trade = this._constructTrade(t, market);
-                    if (trade) {
-                        this.emit("trade", trade, market);
-                    }
+                    const trade = this._constructTrade(t, market.market);
+                    if (trade)
+                        this.emit("trade", trade, market.market);
                 }
             }
             return;
@@ -371,7 +396,7 @@ export class KrakenClient extends BasicClient {
             if (!market) return;
 
             const candle = this._constructCandle(msg);
-            this.emit("candle", candle, market);
+            this.emit("candle", candle, market.market);
             return;
         }
 
@@ -384,15 +409,13 @@ export class KrakenClient extends BasicClient {
             // updates us a/b
             const isSnapshot = !!msg[1].as;
             if (isSnapshot) {
-                const l2snapshot = this._constructLevel2Snapshot(msg[1], market);
-                if (l2snapshot) {
-                    this.emit("l2snapshot", l2snapshot, market, msg);
-                }
+                const l2snapshot = this._constructLevel2Snapshot(msg[1], market.market);
+                if (l2snapshot)
+                    this.emit("l2snapshot", l2snapshot, market.market, msg);
             } else {
-                const l2update = this._constructLevel2Update(msg, market);
-                if (l2update) {
-                    this.emit("l2update", l2update, market, msg);
-                }
+                const l2update = this._constructLevel2Update(msg, market.market);
+                if (l2update)
+                    this.emit("l2update", l2update, market.market, msg);
             }
         }
         return;

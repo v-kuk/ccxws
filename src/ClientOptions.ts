@@ -5,3 +5,8 @@ export type ClientOptions = {
     l2UpdateDepth?: number;
     throttleL2Snapshot?: number;
 };
+
+export type ClientRLOptions = ClientOptions & {
+    maxSocketSubs?: number;
+    maxRequestsPerSecond?: number;
+};
