@@ -55,7 +55,7 @@ export class KucoinClient extends BasicRLClient {
         sendThrottleMs = 10,
         restThrottleMs = 250,
         maxRequestsPerSecond = null,
-        maxSocketSubs = 45
+        maxSocketSubs = 45,
     }: KucoinClientOptions = {}) {
         super(wssPath, "KuCoin", undefined, watcherMs, maxSocketSubs, maxRequestsPerSecond);
         this.hasTickers = true;
@@ -97,7 +97,10 @@ export class KucoinClient extends BasicRLClient {
 
     protected _startPing(socketId: number) {
         clearInterval(this._pingInterval[socketId]);
-        this._pingInterval[socketId] = setInterval(this._sendPing.bind(this, socketId), this._pingIntervalTime);
+        this._pingInterval[socketId] = setInterval(
+            this._sendPing.bind(this, socketId),
+            this._pingIntervalTime,
+        );
     }
 
     protected _stopPing(socketId: number) {
@@ -122,7 +125,6 @@ export class KucoinClient extends BasicRLClient {
      * call is performed that does the REST token fetching and the connection.
      */
     protected async _connect() {
-
         if (this._wss.length == 0) {
             if (this.wssPath) super._connect();
             else await this._connectAsync();
