@@ -6,5 +6,6 @@ export class HuobiSwapsClient extends HuobiBase {
         super({ name: "Huobi Swaps", wssPath, watcherMs });
 
         this.hasLevel2Updates = false;
+        this.hasLevel2Snapshots = false;
     }
 }
