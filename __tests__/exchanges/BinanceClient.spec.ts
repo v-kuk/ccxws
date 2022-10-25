@@ -21,9 +21,9 @@ testClient({
             quote: "USDT",
         },
         {
-            id: "BTCUSDC",
-            base: "BTC",
-            quote: "USDC",
+            id: "ETHUSDT",
+            base: "ETH",
+            quote: "USDT",
         },
     ],
 
