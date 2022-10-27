@@ -138,7 +138,7 @@ export class HuobiBase extends BasicClient {
                 return;
             }
 
-            let msgs = JSON.parse(resp.toString());            
+            let msgs = JSON.parse(resp.toString());
 
             // handle pongs
             if (msgs.ping) {
@@ -187,7 +187,7 @@ export class HuobiBase extends BasicClient {
             }
 
             // l2update
-            if (msgs.ch.endsWith(this.l2updatesChannel)) {                
+            if (msgs.ch.endsWith(this.l2updatesChannel)) {
                 const remoteId = msgs.ch.split(".")[1];
                 const market = this._level2UpdateSubs.get(remoteId);
                 if (!market) return;
