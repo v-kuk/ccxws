@@ -16,6 +16,7 @@ import * as zlib from "../ZlibUtils";
 
 export class HuobiBase extends BasicClient {
     public candlePeriod: CandlePeriod;
+    protected l2updatesChannel: string;
 
     constructor({ name, wssPath, watcherMs }) {
         super(wssPath, name, undefined, watcherMs);
@@ -25,6 +26,7 @@ export class HuobiBase extends BasicClient {
         this.hasLevel2Snapshots = true;
         this.hasLevel2Updates = false;
         this.candlePeriod = CandlePeriod._1m;
+        this.l2updatesChannel = "depth.size_150.high_freq";
     }
 
     protected _sendPong(ts: number) {
@@ -185,7 +187,7 @@ export class HuobiBase extends BasicClient {
             }
 
             // l2update
-            if (msgs.ch.endsWith("depth.size_150.high_freq")) {
+            if (msgs.ch.endsWith(this.l2updatesChannel)) {
                 const remoteId = msgs.ch.split(".")[1];
                 const market = this._level2UpdateSubs.get(remoteId);
                 if (!market) return;
