@@ -45,7 +45,7 @@ testClient({
 
     trade: {
         hasTradeId: true,
-        tradeIdPattern: /\w{24,}/,
+        tradeIdPattern: /[\w{24,}|\d{15,}]/,
     },
 
     candle: {},

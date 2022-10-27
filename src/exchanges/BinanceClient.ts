@@ -1,6 +1,30 @@
 import { BinanceBase, BinanceClientOptions } from "./BinanceBase";
+import { BasicMultiClientV2 } from "../BasicMultiClientV2";
+import { IClient } from "../IClient";
+
+export class BinanceMultiClient extends BasicMultiClientV2 {
+    public options: BinanceClientOptions;
+
+    constructor(options: BinanceClientOptions = {}) {
+        const sockerPairLimit = 1000;
+        super({ sockerPairLimit });
+        this.throttleMs = 100;
+        this.options = options;
+        this.hasTickers = true;
+        this.hasTrades = true;
+        this.hasCandles = false;
+        this.hasLevel2Updates = true;
+    }
+
+    protected _createBasicClient(): IClient {
+        return new BinanceClient({ ...this.options, parent: this });
+    }
+}
 
 export class BinanceClient extends BinanceBase {
+    public retryErrorTimeout: number;
+    public parent: BinanceMultiClient;
+
     constructor({
         useAggTrades = true,
         requestSnapshot = true,
@@ -14,6 +38,7 @@ export class BinanceClient extends BinanceBase {
         l2updateSpeed,
         l2snapshotSpeed,
         batchTickers,
+        parent,
     }: BinanceClientOptions = {}) {
         if (testNet) {
             wssPath = "wss://testnet.binance.vision/stream";
@@ -33,5 +58,6 @@ export class BinanceClient extends BinanceBase {
             l2snapshotSpeed,
             batchTickers,
         });
+        this.parent = parent as BinanceMultiClient;
     }
 }

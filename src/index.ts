@@ -17,7 +17,7 @@ import { Ticker } from "./Ticker";
 import { Trade } from "./Trade";
 
 import { BiboxClient } from "./exchanges/BiboxClient";
-import { BinanceClient } from "./exchanges/BinanceClient";
+import { BinanceClient, BinanceMultiClient } from "./exchanges/BinanceClient";
 import { BinanceFuturesCoinmClient } from "./exchanges/BinanceFuturesCoinmClient";
 import { BinanceFuturesUsdtmClient } from "./exchanges/BinanceFuturesUsdtmClient";
 import { BinanceJeClient } from "./exchanges/BinanceJeClient";
@@ -30,7 +30,7 @@ import { BitstampClient } from "./exchanges/BitstampClient";
 import { BittrexClient } from "./exchanges/BittrexClient";
 import { BybitClient } from "./exchanges/BybitClient";
 import { CexClient } from "./exchanges/CexClient";
-import { CoinbaseProClient } from "./exchanges/CoinbaseProClient";
+import { CoinbaseProClient, CoinbaseProMultiClient } from "./exchanges/CoinbaseProClient";
 import { CoinexClient } from "./exchanges/CoinexClient";
 import { DeribitClient } from "./exchanges/DeribitClient";
 import { DigifinexClient } from "./exchanges/DigifinexClient";
@@ -45,8 +45,8 @@ import { HuobiFuturesClient } from "./exchanges/HuobiFuturesClient";
 import { HuobiJapanClient } from "./exchanges/HuobiJapanClient";
 import { HuobiKoreaClient } from "./exchanges/HuobiKoreaClient";
 import { HuobiSwapsClient } from "./exchanges/HuobiSwapsClient";
-import { KrakenClient } from "./exchanges/KrakenClient";
-import { KucoinClient } from "./exchanges/KucoinClient";
+import { KrakenClient, KrakenMultiClient } from "./exchanges/KrakenClient";
+import { KucoinClient, KucoinMultiClient } from "./exchanges/KucoinClient";
 import { LedgerXClient } from "./exchanges/LedgerXClient";
 import { LiquidClient } from "./exchanges/LiquidClient";
 import { OkexClient } from "./exchanges/OkexClient";
@@ -79,6 +79,7 @@ export {
     // Clients
     BiboxClient,
     BinanceClient,
+    BinanceMultiClient,
     BinanceFuturesCoinmClient,
     BinanceFuturesUsdtmClient,
     BinanceJeClient,
@@ -92,6 +93,7 @@ export {
     BybitClient,
     CexClient,
     CoinbaseProClient,
+    CoinbaseProMultiClient,
     CoinexClient,
     DeribitClient,
     DigifinexClient,
@@ -107,7 +109,9 @@ export {
     HuobiJapanClient,
     HuobiKoreaClient,
     KucoinClient,
+    KucoinMultiClient,
     KrakenClient,
+    KrakenMultiClient,
     LedgerXClient,
     LiquidClient,
     OkexClient,
@@ -123,7 +127,10 @@ export {
  */
 export default {
     Bibox: BiboxClient,
-    Binance: BinanceClient,
+    Binance: {
+        BinanceClient,
+        BinanceMultiClient,
+    },
     BinanceFuturesCoinM: BinanceFuturesCoinmClient,
     BinanceFuturesUsdtM: BinanceFuturesUsdtmClient,
     BinanceJe: BinanceJeClient,
@@ -136,7 +143,10 @@ export default {
     Bittrex: BittrexClient,
     Bybit: BybitClient,
     Cex: CexClient,
-    CoinbasePro: CoinbaseProClient,
+    CoinbasePro: {
+        CoinbaseProClient,
+        CoinbaseProMultiClient,
+    },
     Coinex: CoinexClient,
     Deribit: DeribitClient,
     Digifinex: DigifinexClient,
@@ -151,8 +161,14 @@ export default {
     HuobiSwaps: HuobiSwapsClient,
     HuobiJapan: HuobiJapanClient,
     HuobiKorea: HuobiKoreaClient,
-    Kucoin: KucoinClient,
-    Kraken: KrakenClient,
+    Kucoin: {
+        KucoinClient,
+        KucoinMultiClient,
+    },
+    Kraken: {
+        KrakenClient,
+        KrakenMultiClient,
+    },
     LedgerX: LedgerXClient,
     Liquid: LiquidClient,
     OKEx: OkexClient,

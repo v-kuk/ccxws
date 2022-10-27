@@ -6,6 +6,8 @@
 
 import moment = require("moment");
 import { BasicClient } from "../BasicClient";
+import { BasicMultiClientV2 } from "../BasicMultiClientV2";
+import { IClient } from "../IClient";
 import { ClientOptions } from "../ClientOptions";
 import { Level2Point } from "../Level2Point";
 import { Level2Snapshot } from "../Level2Snapshots";
@@ -17,13 +19,42 @@ import { NotImplementedFn } from "../NotImplementedFn";
 import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 
+export type CoinbaseProClientOptions = ClientOptions & {
+    parent?: CoinbaseProMultiClient;
+};
+
+export class CoinbaseProMultiClient extends BasicMultiClientV2 {
+    public options: CoinbaseProClientOptions;
+
+    constructor(options: CoinbaseProClientOptions = {}) {
+        const sockerPairLimit = 200;
+        super({ sockerPairLimit });
+        this.options = options;
+        this.hasTickers = true;
+        this.hasTrades = true;
+        this.hasLevel2Updates = true;
+        this.hasLevel3Updates = true;
+    }
+
+    protected _createBasicClient(): IClient {
+        return new CoinbaseProClient({ ...this.options, parent: this });
+    }
+}
+
 export class CoinbaseProClient extends BasicClient {
-    constructor({ wssPath = "wss://ws-feed.pro.coinbase.com", watcherMs }: ClientOptions = {}) {
+    protected parent: CoinbaseProMultiClient;
+
+    constructor({
+        wssPath = "wss://ws-feed.pro.coinbase.com",
+        watcherMs,
+        parent,
+    }: CoinbaseProClientOptions = {}) {
         super(wssPath, "CoinbasePro", undefined, watcherMs);
         this.hasTickers = true;
         this.hasTrades = true;
         this.hasLevel2Updates = true;
         this.hasLevel3Updates = true;
+        this.parent = parent;
     }
 
     protected _sendSubTicker(remote_id) {

@@ -6,6 +6,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import Decimal from "decimal.js";
 import { BasicClient, MarketMap } from "../BasicClient";
+import { BasicMultiClientV2 } from "../BasicMultiClientV2";
+import { IClient } from "../IClient";
 import { Candle } from "../Candle";
 import { CandlePeriod } from "../CandlePeriod";
 import { ClientOptions } from "../ClientOptions";
@@ -17,7 +19,10 @@ import { NotImplementedFn } from "../NotImplementedFn";
 import { Ticker } from "../Ticker";
 import { Trade } from "../Trade";
 
-export type KrakenClientOptions = ClientOptions & { autoloadSymbolMaps?: boolean };
+export type KrakenClientOptions = ClientOptions & {
+    autoloadSymbolMaps?: boolean;
+    parent?: KrakenMultiClient;
+};
 
 /**
     Kraken's API documentation is availble at:
@@ -37,8 +42,32 @@ export type KrakenClientOptions = ClientOptions & { autoloadSymbolMaps?: boolean
     This client will retrieve the market keys from those maps to
     determine the remoteIds to send to the server on all sub/unsub requests.
   */
-export class KrakenClient extends BasicClient {
+
+export class KrakenMultiClient extends BasicMultiClientV2 {
+    public options: KrakenClientOptions;
     public candlePeriod: CandlePeriod;
+
+    constructor(options: KrakenClientOptions = {}) {
+        const sockerPairLimit = 300;
+        super({ sockerPairLimit });
+        this.options = options;
+        this.hasTickers = true;
+        this.hasTrades = true;
+        this.hasCandles = false;
+        this.hasLevel2Updates = true;
+        this.candlePeriod = CandlePeriod._1m;
+    }
+
+    protected _createBasicClient(): IClient {
+        return new KrakenClient({ ...this.options, parent: this });
+    }
+}
+export class KrakenClient extends BasicClient {
+    // public candlePeriod: CandlePeriod;
+    public parent: KrakenMultiClient;
+    public get candlePeriod() {
+        return this.parent.candlePeriod;
+    }
     public bookDepth: number;
     public debounceWait: number;
 
@@ -51,6 +80,7 @@ export class KrakenClient extends BasicClient {
         wssPath = "wss://ws.kraken.com",
         autoloadSymbolMaps = true,
         watcherMs,
+        parent,
     }: KrakenClientOptions = {}) {
         super(wssPath, "Kraken", undefined, watcherMs);
 
@@ -59,8 +89,8 @@ export class KrakenClient extends BasicClient {
         this.hasCandles = true;
         this.hasLevel2Updates = true;
         this.hasLevel2Snapshots = false;
+        this.parent = parent;
 
-        this.candlePeriod = CandlePeriod._1m;
         this.bookDepth = 500;
 
         this.subscriptionLog = new Map();
@@ -86,7 +116,7 @@ export class KrakenClient extends BasicClient {
    */
     public async loadSymbolMaps() {
         const uri = "https://api.kraken.com/0/public/AssetPairs";
-        const { result } = await https.get(uri);
+        const { result } = (await https.get(uri)) as any;
         for (const symbol in result) {
             const restName = symbol;
             const wsName = result[symbol].wsname;

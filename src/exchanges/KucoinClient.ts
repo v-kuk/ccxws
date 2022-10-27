@@ -6,6 +6,8 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 /* eslint-disable @typescript-eslint/no-implied-eval */
 import { BasicClient } from "../BasicClient";
+import { BasicMultiClientV2 } from "../BasicMultiClientV2";
+import { IClient } from "../IClient";
 import { CandlePeriod } from "../CandlePeriod";
 import { ClientOptions } from "../ClientOptions";
 import { CancelableFn } from "../flowcontrol/Fn";
@@ -28,6 +30,7 @@ import { NotImplementedFn } from "../NotImplementedFn";
 export type KucoinClientOptions = ClientOptions & {
     sendThrottleMs?: number;
     restThrottleMs?: number;
+    parent?: KucoinMultiClient;
 };
 
 /**
@@ -37,7 +40,29 @@ export type KucoinClientOptions = ClientOptions & {
  * To work around this will require creating multiple clients if you makem ore than 100
  * subscriptions.
  */
+
+export class KucoinMultiClient extends BasicMultiClientV2 {
+    public options: KucoinClientOptions;
+    public candlePeriod: CandlePeriod;
+
+    constructor(options: KucoinClientOptions = {}) {
+        const sockerPairLimit = 300;
+        super({ sockerPairLimit });
+        this.options = options;
+        this.hasTickers = true;
+        this.hasTrades = true;
+        this.hasCandles = false;
+        this.hasLevel2Updates = true;
+        this.candlePeriod = CandlePeriod._1m;
+    }
+
+    protected _createBasicClient(): IClient {
+        return new KucoinClient({ ...this.options, parent: this });
+    }
+}
+
 export class KucoinClient extends BasicClient {
+    public parent: KucoinMultiClient;
     public candlePeriod: CandlePeriod;
     public readonly restThrottleMs: number;
     public readonly connectInitTimeoutMs: number;
@@ -54,6 +79,7 @@ export class KucoinClient extends BasicClient {
         watcherMs,
         sendThrottleMs = 10,
         restThrottleMs = 250,
+        parent = null,
     }: KucoinClientOptions = {}) {
         super(wssPath, "KuCoin", undefined, watcherMs);
         this.hasTickers = true;
@@ -75,6 +101,7 @@ export class KucoinClient extends BasicClient {
             this.__requestLevel3Snapshot.bind(this),
             restThrottleMs,
         );
+        this.parent = parent;
     }
 
     protected _beforeClose() {
