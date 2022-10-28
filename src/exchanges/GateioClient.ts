@@ -27,6 +27,7 @@ export class GateioClient extends BasicClient {
     public debounceWait: number;
     protected _debounceHandles: Map<any, any>;
     protected _pingInterval: NodeJS.Timeout;
+    protected firstTradeMap: Map<string, number>;
 
     constructor({ wssPath = "wss://ws.gate.io/v3", watcherMs = 900 * 1000 }: ClientOptions = {}) {
         super(wssPath, "Gateio", undefined, watcherMs);
@@ -35,6 +36,7 @@ export class GateioClient extends BasicClient {
         this.hasLevel2Snapshots = false;
         this.hasLevel2Updates = true;
         this.hasLevel3Updates = false;
+        this.firstTradeMap = new Map();
         this.debounceWait = 100;
         this._debounceHandles = new Map();
     }
@@ -90,7 +92,8 @@ export class GateioClient extends BasicClient {
         );
     }
 
-    protected _sendSubTrades() {
+    protected _sendSubTrades(remoteId: string) {
+        this.firstTradeMap.set(remoteId, 0);
         this._debounce("sub-trades", () => {
             const markets = Array.from(this._tradeSubs.keys()).map(m => m.toUpperCase()); // must be uppercase
             this._wss.send(
@@ -103,7 +106,8 @@ export class GateioClient extends BasicClient {
         });
     }
 
-    protected _sendUnsubTrades() {
+    protected _sendUnsubTrades(remoteId: string) {
+        this.firstTradeMap.delete(remoteId);
         this._wss.send(
             JSON.stringify({
                 method: "trades.unsubscribe",
@@ -162,6 +166,12 @@ export class GateioClient extends BasicClient {
 
         if (method === "trades.update") {
             const marketId = params[0];
+
+            if (this.firstTradeMap.get(marketId) < 2) {
+                this.firstTradeMap.set(marketId, this.firstTradeMap.get(marketId) + 1);
+                return;
+            }
+
             const market =
                 this._tradeSubs.get(marketId.toUpperCase()) ||
                 this._tradeSubs.get(marketId.toLowerCase());
