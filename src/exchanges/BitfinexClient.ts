@@ -72,9 +72,9 @@ export class BitfinexMultiClient extends BasicMultiClientV2 {
     public options: BitfinexClientOptions;
 
     constructor(options: BitfinexClientOptions = {}) {
-        const sockerPairLimit = 23;
+        const sockerPairLimit = 25;
         super({ sockerPairLimit });
-        this.throttleMs = 1000;
+        this.throttleMs = 3000;
         this.options = options;
         this.hasTickers = true;
         this.hasTrades = true;
