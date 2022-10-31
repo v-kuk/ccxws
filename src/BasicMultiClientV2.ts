@@ -51,7 +51,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         this.hasLevel3Snapshots = false;
         this.hasLevel3Updates = false;
         this.throttleMs = 250;
-        this.sem = semaphore(3); // this can be overriden to allow more or less
+        this.sem = semaphore(1); // this can be overriden to allow more or less
     }
 
     public async reconnect() {
