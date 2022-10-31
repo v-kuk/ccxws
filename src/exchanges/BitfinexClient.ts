@@ -6,6 +6,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import { BasicClient, MarketMap, SendFn } from "../BasicClient";
+import { BasicMultiClientV2 } from "../BasicMultiClientV2";
+import { IClient } from "../IClient";
 import { Level2Point } from "../Level2Point";
 import { Level2Snapshot } from "../Level2Snapshots";
 import { Level2Update } from "../Level2Update";
@@ -63,12 +65,32 @@ export type BitfinexClientOptions = {
      * will want to use "all" to receive every sequenceId.
      */
     tradeMessageType?: BitfinexTradeMessageType;
+    parent?: BitfinexMultiClient;
 };
+
+export class BitfinexMultiClient extends BasicMultiClientV2 {
+    public options: BitfinexClientOptions;
+
+    constructor(options: BitfinexClientOptions = {}) {
+        const sockerPairLimit = 23;
+        super({ sockerPairLimit });
+        this.options = options;
+        this.hasTickers = true;
+        this.hasTrades = true;
+        this.hasCandles = false;
+        this.hasLevel2Updates = true;
+    }
+
+    protected _createBasicClient(): IClient {
+        return new BitfinexClient({ ...this.options, parent: this });
+    }
+}
 
 export class BitfinexClient extends BasicClient {
     public l2UpdateDepth: number;
     public enableEmptyHeartbeatEvents: boolean;
     public tradeMessageType: BitfinexTradeMessageType;
+    public parent: BitfinexMultiClient;
 
     protected _channels: any;
     protected _sendSubCandles = NotImplementedFn;
@@ -84,6 +106,7 @@ export class BitfinexClient extends BasicClient {
         l2UpdateDepth = 250,
         enableEmptyHeartbeatEvents = false,
         tradeMessageType = BitfinexTradeMessageType.Update,
+        parent,
     }: BitfinexClientOptions = {}) {
         super(wssPath, "Bitfinex", undefined, watcherMs);
         this._channels = {};
@@ -95,6 +118,7 @@ export class BitfinexClient extends BasicClient {
         this.l2UpdateDepth = l2UpdateDepth;
         this.enableEmptyHeartbeatEvents = enableEmptyHeartbeatEvents;
         this.tradeMessageType = tradeMessageType;
+        this.parent = parent;
     }
 
     protected _onConnected() {
