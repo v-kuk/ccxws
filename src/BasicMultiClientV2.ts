@@ -160,6 +160,15 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
                 client.on("closing", (msg: any) => this.emit("closing", msg));
                 client.on("closed", (msg: any) => this.emit("closed", msg));
                 client.on("error", (err: any) => this.emit("error", err));
+                client.on("trade", (trade, market) => this.emit("trade", trade, market));
+                client.on("ticker", (ticker, market) => this.emit("ticker", ticker, market));
+                client.on("candle", (candle, market) => this.emit("candle", candle, market));
+                client.on("l2update", (l2update, market) =>
+                    this.emit("l2update", l2update, market),
+                );
+                client.on("l2snapshot", (l2snapshot, market) =>
+                    this.emit("l2snapshot", l2snapshot, market),
+                );
                 const clearSem = async () => {
                     await wait(this.throttleMs);
                     this.sem.leave();
@@ -217,9 +226,6 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             if (subscriptionType === SubscriptionType.ticker) {
                 const subscribed = client.subscribeTicker(market);
                 if (subscribed) {
-                    client.on("ticker", (ticker, market) => {
-                        this.emit("ticker", ticker, market);
-                    });
                     clientRow.count++;
                 }
             }
@@ -227,9 +233,6 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             if (subscriptionType === SubscriptionType.candle) {
                 const subscribed = client.subscribeCandles(market);
                 if (subscribed) {
-                    client.on("candle", (candle, market) => {
-                        this.emit("candle", candle, market);
-                    });
                     clientRow.count++;
                 }
             }
@@ -237,9 +240,6 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             if (subscriptionType === SubscriptionType.trade) {
                 const subscribed = client.subscribeTrades(market);
                 if (subscribed) {
-                    client.on("trade", (trade, market) => {
-                        this.emit("trade", trade, market);
-                    });
                     clientRow.count++;
                 }
             }
@@ -247,12 +247,6 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             if (subscriptionType === SubscriptionType.level2update) {
                 const subscribed = client.subscribeLevel2Updates(market);
                 if (subscribed) {
-                    client.on("l2update", (l2update, market) => {
-                        this.emit("l2update", l2update, market);
-                    });
-                    client.on("l2snapshot", (l2snapshot, market) => {
-                        this.emit("l2snapshot", l2snapshot, market);
-                    });
                     clientRow.count++;
                 }
             }
@@ -260,9 +254,6 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             if (subscriptionType === SubscriptionType.level2snapshot) {
                 const subscribed = client.subscribeLevel2Snapshots(market);
                 if (subscribed) {
-                    client.on("l2snapshot", (l2snapshot, market) => {
-                        this.emit("l2snapshot", l2snapshot, market);
-                    });
                     clientRow.count++;
                 }
             }
