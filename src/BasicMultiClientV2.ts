@@ -197,7 +197,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
             client: this._createBasicClientThrottled({ auth: this.auth }),
             count: 0,
         };
-        this._socket_clients.push();
+        this._socket_clients.push(client);
         return client;
     }
 
