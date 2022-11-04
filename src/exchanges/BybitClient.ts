@@ -217,12 +217,14 @@ export class BybitClient extends BasicClient {
     }
 
     protected _onL2Update(msg) {
-        const [{
-            s, // symbol
-            t, // timestamp
-            b, // bids
-            a, // asks
-        }] = msg.data;
+        const [
+            {
+                s, // symbol
+                t, // timestamp
+                b, // bids
+                a, // asks
+            },
+        ] = msg.data;
 
         const bids = b.map(([price, amount]) => new Level2Point(price, amount));
         const asks = a.map(([price, amount]) => new Level2Point(price, amount));
