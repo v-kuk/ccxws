@@ -28,7 +28,7 @@ export class BybitClient extends BasicClient {
     protected _sendUnsubLevel3Updates = NotImplementedFn;
 
     constructor({
-        wssPath = "wss://stream.bybit.com/spot/quote/ws/v2",
+        wssPath = "wss://stream.bybit.com/spot/quote/ws/v1",
         watcherMs,
     }: BybitClientOptions = {}) {
         super(wssPath, "Bybit", undefined, watcherMs);
@@ -106,10 +106,10 @@ export class BybitClient extends BasicClient {
     protected _sendSubLevel2Updates(remoteId: string) {
         this._wss.send(
             JSON.stringify({
-                topic: "depth",
+                topic: "diffDepth",
                 event: "sub",
+                symbol: remoteId,
                 params: {
-                    symbol: remoteId,
                     binary: false,
                 },
             }),
@@ -119,10 +119,10 @@ export class BybitClient extends BasicClient {
     protected _sendUnsubLevel2Updates(remoteId: string) {
         this._wss.send(
             JSON.stringify({
-                topic: "depth",
+                topic: "diffDepth",
                 event: "cancel",
+                symbol: remoteId,
                 params: {
-                    symbol: remoteId,
                     binary: false,
                 },
             }),
@@ -150,7 +150,7 @@ export class BybitClient extends BasicClient {
             return;
         }
 
-        if (msg.topic === "depth") {
+        if (msg.topic === "diffDepth") {
             this._onL2Update(msg);
             return;
         }
@@ -217,12 +217,12 @@ export class BybitClient extends BasicClient {
     }
 
     protected _onL2Update(msg) {
-        const {
+        const [{
             s, // symbol
             t, // timestamp
             b, // bids
             a, // asks
-        } = msg.data;
+        }] = msg.data;
 
         const bids = b.map(([price, amount]) => new Level2Point(price, amount));
         const asks = a.map(([price, amount]) => new Level2Point(price, amount));
