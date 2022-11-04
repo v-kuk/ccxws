@@ -12,10 +12,12 @@ import { IClient } from "./IClient";
 import { SubscriptionType } from "./SubscriptionType";
 import { wait } from "./Util";
 import { NotImplementedFn } from "./NotImplementedFn";
+import { Semaphore } from "./lib/Semaphore";
+import { Counter } from "./lib/Counter";
 
 type clientStore = {
     client: Promise<IClient>;
-    count: number;
+    count: Counter;
 };
 
 export abstract class BasicMultiClientV2 extends EventEmitter {
@@ -29,6 +31,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
     public hasLevel3Updates: boolean;
     public throttleMs: number;
     public sem: semaphore.Semaphore;
+    public semaphore: Semaphore;
     public auth: any;
 
     protected _socket_clients: Array<clientStore>;
@@ -52,6 +55,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         this.hasLevel3Updates = false;
         this.throttleMs = 250;
         this.sem = semaphore(1); // this can be overriden to allow more or less
+        this.semaphore = new Semaphore();
     }
 
     public async reconnect() {
@@ -82,7 +86,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         if (this._pair_clients.has(market.id)) {
             const client = await this._pair_clients.get(market.id).client;
             client.unsubscribeTicker(market);
-            this._pair_clients.get(market.id).count--;
+            this._pair_clients.get(market.id).count.dec();
         }
     }
 
@@ -96,7 +100,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         if (this._pair_clients.has(market.id)) {
             const client = await this._pair_clients.get(market.id).client;
             client.unsubscribeCandles(market);
-            this._pair_clients.get(market.id).count--;
+            this._pair_clients.get(market.id).count.dec();
         }
     }
 
@@ -110,7 +114,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         if (this._pair_clients.has(market.id)) {
             const client = await this._pair_clients.get(market.id).client;
             client.unsubscribeTrades(market);
-            this._pair_clients.get(market.id).count--;
+            this._pair_clients.get(market.id).count.dec();
         }
     }
 
@@ -124,7 +128,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         if (this._pair_clients.has(market.id)) {
             const client = await this._pair_clients.get(market.id).client;
             client.unsubscribeLevel2Updates(market);
-            this._pair_clients.get(market.id).count--;
+            this._pair_clients.get(market.id).count.dec();
         }
     }
 
@@ -138,7 +142,7 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         if (this._pair_clients.has(market.id)) {
             const client = await this._pair_clients.get(market.id).client;
             client.unsubscribeLevel2Snapshots(market);
-            this._pair_clients.get(market.id).count--;
+            this._pair_clients.get(market.id).count.dec();
         }
     }
 
@@ -180,23 +184,31 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         });
     }
 
-    protected _get_free_client() {
-        let cond: boolean = false;
+    protected async _get_free_client(pair: string): Promise<clientStore> {
         let client: clientStore;
+        let cond: boolean = false;
+        if (this._pair_clients.has(pair)) {
+            const client = this._pair_clients.get(pair);
+            if (await client.count.compareInc(this._connect_limit)) {
+                return client;
+            }
+        }
         if (this._socket_clients.length > 0) {
             for (const row of this._socket_clients) {
-                if (row.count < this._connect_limit) {
+                if (await row.count.compareInc(this._connect_limit)) {
                     client = row;
                     cond = true;
                     break;
                 }
             }
-            if (cond) return client;
         }
-        client = {
-            client: this._createBasicClientThrottled({ auth: this.auth }),
-            count: 0,
-        };
+        if (!cond) {
+            client = {
+                client: this._createBasicClientThrottled({ auth: this.auth }),
+                count: new Counter(1),
+            };
+        }
+        this._pair_clients.set(pair, client);
         this._socket_clients.push(client);
         return client;
     }
@@ -207,56 +219,51 @@ export abstract class BasicMultiClientV2 extends EventEmitter {
         subscriptionType: SubscriptionType,
     ) {
         try {
-            const remote_id = market.id;
-            let clientRow = null;
-
-            // construct a client
-            if (!map.has(remote_id)) {
-                // getClient
-                clientRow = this._get_free_client();
-                // we MUST store the promise in here otherwise we will stack up duplicates
-                map.set(remote_id, clientRow);
-            } else {
-                clientRow = map.get(remote_id);
-            }
+            // getClient
+            await this.semaphore.enter();
+            const clientRow: clientStore = await this._get_free_client(market.id);
+            this.semaphore.leave();
 
             // wait for client to be made!
             const client = await clientRow.client;
 
             if (subscriptionType === SubscriptionType.ticker) {
-                const subscribed = client.subscribeTicker(market);
+                const subscribed = client.subscribeTicker(market) as any;
                 if (subscribed) {
-                    clientRow.count++;
+                    return true;
                 }
             }
 
             if (subscriptionType === SubscriptionType.candle) {
-                const subscribed = client.subscribeCandles(market);
+                const subscribed = client.subscribeCandles(market) as any;
                 if (subscribed) {
-                    clientRow.count++;
+                    return true;
                 }
             }
 
             if (subscriptionType === SubscriptionType.trade) {
-                const subscribed = client.subscribeTrades(market);
+                const subscribed = client.subscribeTrades(market) as any;
                 if (subscribed) {
-                    clientRow.count++;
+                    return true;
                 }
             }
 
             if (subscriptionType === SubscriptionType.level2update) {
-                const subscribed = client.subscribeLevel2Updates(market);
+                const subscribed = client.subscribeLevel2Updates(market) as any;
                 if (subscribed) {
-                    clientRow.count++;
+                    return true;
                 }
             }
 
             if (subscriptionType === SubscriptionType.level2snapshot) {
-                const subscribed = client.subscribeLevel2Snapshots(market);
+                const subscribed = client.subscribeLevel2Snapshots(market) as any;
                 if (subscribed) {
-                    clientRow.count++;
+                    return true;
                 }
             }
+
+            clientRow.count.dec();
+            return false;
         } catch (ex) {
             this.emit("error", ex, market);
         }
