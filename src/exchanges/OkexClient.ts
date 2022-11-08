@@ -209,7 +209,7 @@ export class OkexClient extends BasicClient {
         this._sendMessage(
             JSON.stringify({
                 op: "subscribe",
-                args: [this._marketArg("books-l2-tbt", market)],
+                args: [this._marketArg("books", market)],
             }),
         );
     }
@@ -218,7 +218,7 @@ export class OkexClient extends BasicClient {
         this._sendMessage(
             JSON.stringify({
                 op: "unsubscribe",
-                args: [this._marketArg("books-l2-tbt", market)],
+                args: [this._marketArg("books", market)],
             }),
         );
     }
@@ -286,7 +286,7 @@ export class OkexClient extends BasicClient {
         }
 
         // l2 updates
-        if (msg.arg.channel.match(/books-l2-tbt/)) {
+        if (msg.arg.channel.match(/books/)) {
             this._processLevel2Update(msg);
             return;
         }
