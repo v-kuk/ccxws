@@ -56,8 +56,8 @@ export class BybitClient extends BasicClient {
             JSON.stringify({
                 topic: "realtimes",
                 event: "sub",
+                symbol: remoteId,
                 params: {
-                    symbol: remoteId,
                     binary: false,
                 },
             }),
@@ -69,8 +69,8 @@ export class BybitClient extends BasicClient {
             JSON.stringify({
                 topic: "realtimes",
                 event: "cancel",
+                symbol: remoteId,
                 params: {
-                    symbol: remoteId,
                     binary: false,
                 },
             }),
@@ -82,8 +82,8 @@ export class BybitClient extends BasicClient {
             JSON.stringify({
                 topic: "trade",
                 event: "sub",
+                symbol: remoteId,
                 params: {
-                    symbol: remoteId,
                     binary: false,
                 },
             }),
@@ -157,7 +157,7 @@ export class BybitClient extends BasicClient {
     }
 
     protected _onTicker(msg) {
-        const {
+        const [{
             s, // symbol
             t, // timestamp
             o, // open
@@ -167,7 +167,7 @@ export class BybitClient extends BasicClient {
             v, // volume
             qv, // quote volume
             m, // change
-        } = msg.data;
+        }] = msg.data;
 
         const market = this._tickerSubs.get(s);
         if (!market) return;
@@ -190,14 +190,14 @@ export class BybitClient extends BasicClient {
     }
 
     protected _onTrade(msg) {
-        const { symbol } = msg.params;
-        const {
+        const { symbol } = msg;
+        const [{
             v, // trade ID
             t, // timestamp
             p, // price
             q, // quantity
             m, // isBuy
-        } = msg.data;
+        }] = msg.data;
 
         const market = this._tradeSubs.get(symbol);
         if (!market) return;
