@@ -157,17 +157,19 @@ export class BybitClient extends BasicClient {
     }
 
     protected _onTicker(msg) {
-        const [{
-            s, // symbol
-            t, // timestamp
-            o, // open
-            c, // close
-            h, // high
-            l, // low
-            v, // volume
-            qv, // quote volume
-            m, // change
-        }] = msg.data;
+        const [
+            {
+                s, // symbol
+                t, // timestamp
+                o, // open
+                c, // close
+                h, // high
+                l, // low
+                v, // volume
+                qv, // quote volume
+                m, // change
+            },
+        ] = msg.data;
 
         const market = this._tickerSubs.get(s);
         if (!market) return;
@@ -191,13 +193,15 @@ export class BybitClient extends BasicClient {
 
     protected _onTrade(msg) {
         const { symbol } = msg;
-        const [{
-            v, // trade ID
-            t, // timestamp
-            p, // price
-            q, // quantity
-            m, // isBuy
-        }] = msg.data;
+        const [
+            {
+                v, // trade ID
+                t, // timestamp
+                p, // price
+                q, // quantity
+                m, // isBuy
+            },
+        ] = msg.data;
 
         const market = this._tradeSubs.get(symbol);
         if (!market) return;
